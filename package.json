@@ -1,0 +1,16 @@
+{
+  "name": "fantasy-land",
+  "private": true,
+  "scripts": {
+    "dev": "docker compose up --build",
+    "down": "docker compose down",
+    "fe": "yarn --cwd frontend",
+    "be": "yarn --cwd backend",
+    "install:all": "yarn --cwd frontend install && yarn --cwd backend install",
+    "lint": "yarn --cwd frontend lint && yarn --cwd backend lint",
+    "typecheck": "yarn --cwd frontend typecheck && yarn --cwd backend typecheck",
+    "test": "yarn --cwd frontend test && yarn --cwd backend test",
+    "build": "yarn --cwd frontend build && yarn --cwd backend build",
+    "verify": "yarn lint && yarn typecheck && yarn test && yarn build"
+  }
+}

@@ -1,0 +1,1 @@
+export { GameLogTable } from './GameLogTable';
