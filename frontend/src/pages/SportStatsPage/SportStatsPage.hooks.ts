@@ -43,9 +43,17 @@ export const useStatsFilters = (catalog: SportCatalog) => {
     };
   }, [catalog, params]);
 
-  /** Any filter change returns to the first page. */
+  /** Any filter change returns to the first page. Filter names map to URL param names (search → q). */
   const setFilters = (changes: StatsFilterChanges) =>
-    update({ ...changes, [STATS_PARAMS.page]: undefined });
+    update({
+      ...Object.fromEntries(
+        Object.entries(changes).map(([name, value]) => [
+          STATS_PARAMS[name as keyof StatsFilterChanges],
+          value,
+        ]),
+      ),
+      [STATS_PARAMS.page]: undefined,
+    });
 
   const setGroup = (group: string) =>
     setFilters({
