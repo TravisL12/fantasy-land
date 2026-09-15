@@ -9,6 +9,7 @@ export default defineConfig({
       '/api': process.env.API_PROXY_TARGET ?? 'http://localhost:3000',
     },
     watch: { usePolling: !!process.env.API_PROXY_TARGET },
+    allowedHosts: ['fantasyland.doubleplay.duckdns.org'],
   },
   test: {
     environment: 'happy-dom',
