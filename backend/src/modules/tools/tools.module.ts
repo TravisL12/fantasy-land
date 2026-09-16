@@ -5,6 +5,9 @@ import { MatchupRatingsTool } from './baseball/matchup-ratings.tool.js';
 import { PitcherStartsTool } from './baseball/pitcher-starts.tool.js';
 import { PlayerStatusTool } from './baseball/player-status.tool.js';
 import { ProbablePitchersTool } from './baseball/probable-pitchers.tool.js';
+import { SleeperUserService } from './sleeper/sleeper.service.js';
+import { SleeperUserInfoTool } from './sleeper/user-info.tool.js';
+import { SleeperUserLeaguesTool } from './sleeper/user-leagues.tool.js';
 import { ComparePlayersTool } from './sports/compare-players.tool.js';
 import { FindPlayerTool } from './sports/find-player.tool.js';
 import { LeaderboardTool } from './sports/leaderboard.tool.js';
@@ -27,12 +30,15 @@ const TOOLS = [
   PitcherStartsTool,
   MatchupRatingsTool,
   PlayerStatusTool,
+  SleeperUserInfoTool,
+  SleeperUserLeaguesTool,
 ] as const;
 
 // To add a tool: implement FantasyTool under a subfolder and list it here.
 @Module({
   imports: [SportsModule, McpModule],
   providers: [
+    SleeperUserService,
     ...TOOLS,
     {
       provide: FANTASY_TOOLS,

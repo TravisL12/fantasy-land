@@ -157,7 +157,7 @@ export class ChatService {
         const call: ToolCall = {
           id: randomUUID(),
           name: fn.name,
-          arguments: fn.arguments ?? {},
+          arguments: toArguments(fn.arguments),
         };
         turn.toolCalls.push(call);
         yield { type: CHAT_EVENTS.toolCall, call };
@@ -165,6 +165,26 @@ export class ChatService {
     }
   }
 }
+
+/**
+ * Some models emit tool arguments as a JSON string rather than an object. Left
+ * as a string, every argument reads as undefined and the tool is called empty.
+ */
+const toArguments = (raw: unknown): Record<string, unknown> => {
+  if (typeof raw === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return typeof parsed === 'object' && parsed !== null
+        ? (parsed as Record<string, unknown>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof raw === 'object' && raw !== null
+    ? (raw as Record<string, unknown>)
+    : {};
+};
 
 const toOllamaTool = (tool: ToolDefinition): OllamaTool => ({
   type: 'function',

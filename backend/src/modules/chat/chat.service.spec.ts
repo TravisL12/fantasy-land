@@ -13,7 +13,7 @@ const content = (text: string): OllamaChatChunk => ({
   message: { role: CHAT_ROLES.assistant, content: text },
 });
 
-const toolCall = (name: string, args: Record<string, unknown>) => ({
+const toolCall = (name: string, args: Record<string, unknown> | string) => ({
   message: {
     role: CHAT_ROLES.assistant,
     content: '',
@@ -126,6 +126,35 @@ describe('ChatService', () => {
       toolName: 'get_nfl_state',
     });
     expect(secondTurn.at(-2)?.toolCalls?.[0].name).toBe('get_nfl_state');
+  });
+
+
+  // Some models send the arguments object as a JSON string, which read as
+  // undefined and called the tool empty.
+  it('parses tool arguments that arrive as a JSON string', async () => {
+    const ollama = stubOllama([
+      [toolCall('get_nfl_state', '{"username_or_id":"travis"}')],
+      [content('done')],
+    ]);
+    const { service, callTool } = build(ollama);
+
+    await collect(service.run(ask('my leagues?'), signal));
+
+    expect(callTool).toHaveBeenCalledWith('get_nfl_state', {
+      username_or_id: 'travis',
+    });
+  });
+
+  it('calls the tool with no arguments when the model sends unparsable ones', async () => {
+    const ollama = stubOllama([
+      [toolCall('get_nfl_state', 'not json')],
+      [content('done')],
+    ]);
+    const { service, callTool } = build(ollama);
+
+    await collect(service.run(ask('my leagues?'), signal));
+
+    expect(callTool).toHaveBeenCalledWith('get_nfl_state', {});
   });
 
   it('gives up after maxToolRounds instead of looping forever', async () => {

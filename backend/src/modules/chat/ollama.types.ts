@@ -1,7 +1,8 @@
 /** Wire shapes for Ollama's /api/chat and /api/tags endpoints. */
 
 export interface OllamaToolCall {
-  function: { name: string; arguments: Record<string, unknown> };
+  /** Some models send `arguments` as a JSON string, not an object. */
+  function: { name: string; arguments: Record<string, unknown> | string };
 }
 
 export interface OllamaMessage {
