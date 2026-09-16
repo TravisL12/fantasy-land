@@ -1,11 +1,22 @@
 import styled from 'styled-components';
 
+export const Shell = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+`;
+
+export const Fixed = styled.div`
+  flex-shrink: 0;
+`;
+
 export const Conversation = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing(3)};
-  min-height: 320px;
+  min-height: 0;
   padding-bottom: ${({ theme }) => theme.spacing(3)};
   overflow-y: auto;
 `;

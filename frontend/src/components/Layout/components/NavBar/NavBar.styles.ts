@@ -2,6 +2,7 @@ import { NavLink } from 'react-router';
 import styled from 'styled-components';
 
 export const Bar = styled.header`
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing(6)};
