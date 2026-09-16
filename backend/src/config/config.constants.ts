@@ -10,3 +10,16 @@ export const DEFAULT_DATABASE_URL =
 export const AUTH_CONFIG_KEY = 'auth';
 export const DEFAULT_SESSION_TTL_DAYS = 30;
 export const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export const CHAT_CONFIG_KEY = 'chat';
+/** Ollama runs on the host, not in the compose network. */
+export const DEFAULT_OLLAMA_BASE_URL = 'http://host.docker.internal:11434';
+export const DEFAULT_OLLAMA_MODEL = 'qwen3.5:9b-q4_K_M';
+export const DEFAULT_OLLAMA_TEMPERATURE = 0.3;
+/** Local models are slow; a long generation shouldn't look like a failure. */
+export const DEFAULT_OLLAMA_TIMEOUT_MS = 300_000;
+export const DEFAULT_CHAT_MAX_TOOL_ROUNDS = 6;
+
+export const MCP_CONFIG_KEY = 'mcp';
+
+export const MCP_HTTP_CONFIG_KEY = 'mcpHttp';

@@ -4,6 +4,7 @@ export const ROUTES = {
   home: '/',
   login: '/login',
   register: '/register',
+  chat: '/chat',
   sports: '/sports',
   sportStats: '/sports/:sport',
   playerStats: '/sports/:sport/players/:playerId',

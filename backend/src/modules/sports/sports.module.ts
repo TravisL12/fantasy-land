@@ -20,5 +20,6 @@ import { SportsService } from './sports.service.js';
     },
     SportsService,
   ],
+  exports: [SportsService],
 })
 export class SportsModule {}

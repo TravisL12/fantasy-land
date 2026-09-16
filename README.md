@@ -84,6 +84,46 @@ All routes are under `/api`.
 | `GET` | `/sports/:sport` | One sport's catalog: stat groups, positions, scoring presets |
 | `GET` | `/sports/:sport/stats` | Paginated player stats. Filters: season, week, group, position, kind, scoring, sort, order, minGames, search |
 | `GET` | `/sports/:sport/players/:playerId/stats` | A player's game log and points summary |
+| `GET` | `/chat/status` | Which local model is configured and which MCP tools are loaded |
+| `POST` | `/chat/stream` | Chat with the local model (SSE stream) |
+| `POST` | `/mcp` | MCP endpoint publishing this app's tools to external agents |
+
+### Chat
+
+`/chat` is a conversation with a local [Ollama](https://ollama.com) model that can call the live Sleeper API through an MCP server, so answers are grounded in real data instead of the model's memory.
+
+The backend runs the loop: it sends the conversation plus the MCP tool list to Ollama, executes any tool the model asks for, feeds the result back, and repeats until the model answers (capped by `CHAT_MAX_TOOL_ROUNDS`). Progress is streamed to the browser as server-sent events — tokens, tool calls, and tool results — so the UI can show what the model looked up while it is still thinking.
+
+Set it up:
+
+1. Install Ollama on the host and pull a model that supports tool calling: `ollama pull qwen3.5:9b-q4_K_M`.
+2. Put the model in `.env` as `OLLAMA_MODEL`. The container reaches the host at `host.docker.internal` (see `OLLAMA_BASE_URL`).
+
+The model gets two families of tools. The first is this app's own data, run in-process against `SportsService` — `find_player`, `get_sport_catalog`, `get_leaderboard`, `get_player_season_stats`, `get_player_game_log` and `compare_players` — so stats answers use our scoring engine, our cache and our consistency numbers (floor, ceiling, volatility). Adding one means implementing `FantasyTool` under `backend/src/modules/tools/` and listing it in `tools.module.ts`.
+
+The second is league context from MCP servers listed in `MCP_SERVERS`. It defaults to the bundled [`sleeper-mcp`](https://www.npmjs.com/package/sleeper-mcp) package (18 read-only Sleeper tools, no API key), started over stdio. A server that fails to start is logged and skipped, so chat still works without it. Where both offer the same tool, ours wins. `GET /api/chat/status` shows what actually loaded and where each tool came from.
+
+Sleeper's tools are id-based, so ask with a Sleeper username — the model looks up the user id, then the league ids from there.
+
+### Using our tools from Claude Code or Claude Desktop
+
+The same tools the in-app chat uses are published over MCP at `POST /api/mcp`, so any MCP client can query this backend — one shared instance, one warm cache, one scoring engine. Only our own tools are published; the third-party Sleeper server is not proxied.
+
+Set a token to switch the endpoint on (it is disabled without one):
+
+```bash
+echo "MCP_HTTP_TOKEN=$(openssl rand -hex 24)" >> .env
+docker compose up -d backend
+```
+
+Then point a client at it:
+
+```bash
+claude mcp add --transport http fantasy-land http://localhost:3000/api/mcp \
+  --header "Authorization: Bearer $MCP_HTTP_TOKEN"
+```
+
+The endpoint is stateless — every request carries its own session, so `GET` and `DELETE` return 405 and any instance can serve any request.
 
 ### Sports providers and caching
 
@@ -100,6 +140,7 @@ Upstream responses go through `DataCacheService`, a read-through cache that chec
 | `/sports` | Sport picker |
 | `/sports/:sport` | Stats table with filters, search, sorting, pagination, and a column picker |
 | `/sports/:sport/players/:playerId` | Player game log and points summary |
+| `/chat` | Chat with the local model, with its tool calls shown inline |
 
 Stats filters are stored in the URL, so views can be shared. Column choices are saved to `localStorage`.
 
@@ -116,7 +157,7 @@ backend/src/
   config/               registerAs() configs
   common/               filters, decorators, HTTP helpers
   database/             Drizzle client, schema barrel, migration runner
-  modules/              auth, users, sports, data-cache, health
+  modules/              auth, users, sports, chat, tools, mcp, data-cache, health
 backend/drizzle/        SQL migrations
 ```
 
