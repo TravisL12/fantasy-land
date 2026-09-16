@@ -58,11 +58,11 @@ const playerStatsResponse: PlayerStatsResponseDto = {
   },
 };
 
-const sportsStub = () =>
+const sportsStub = (groups = [{ key: 'offense' }]) =>
   ({
     getStats: vi.fn().mockResolvedValue(statsResponse),
     getPlayerStats: vi.fn().mockResolvedValue(playerStatsResponse),
-    getCatalog: vi.fn(),
+    getCatalog: vi.fn().mockResolvedValue({ groups }),
   }) as unknown as SportsService;
 
 describe('sports tools', () => {
@@ -74,7 +74,7 @@ describe('sports tools', () => {
       expect(result).toEqual({
         sport: 'nfl',
         season: '2025',
-        players: [{ ...vele, gamesPlayed: 13 }],
+        players: [{ ...vele, group: 'offense', gamesPlayed: 13 }],
       });
       expect(vi.mocked(sports.getStats)).toHaveBeenCalledWith(
         'nfl',
@@ -89,6 +89,48 @@ describe('sports tools', () => {
       await expect(
         new FindPlayerTool(sports).execute({ query: 'nobody' }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('searches every stat group, so a pitcher is not hidden behind hitting', async () => {
+      const sports = sportsStub([{ key: 'hitting' }, { key: 'pitching' }]);
+      vi.mocked(sports.getStats).mockImplementation(async (_sport, query) =>
+        query.group === 'pitching'
+          ? { ...statsResponse, group: 'pitching' }
+          : { ...statsResponse, group: 'hitting', rows: [] },
+      );
+
+      const result = await new FindPlayerTool(sports).execute({
+        sport: 'mlb',
+        query: 'skubal',
+      });
+
+      expect(result.players).toEqual([
+        { ...vele, group: 'pitching', gamesPlayed: 13 },
+      ]);
+    });
+
+    it('returns a player found in two groups only once', async () => {
+      const sports = sportsStub([{ key: 'hitting' }, { key: 'pitching' }]);
+      vi.mocked(sports.getStats).mockImplementation(async (_sport, query) => ({
+        ...statsResponse,
+        group: query.group as string,
+        rows: [
+          {
+            ...statsResponse.rows[0],
+            gamesPlayed: query.group === 'hitting' ? 134 : 20,
+          },
+        ],
+      }));
+
+      const result = await new FindPlayerTool(sports).execute({
+        sport: 'mlb',
+        query: 'ohtani',
+      });
+
+      // The busier line wins, so a two-way player lands in the group that matters.
+      expect(result.players).toEqual([
+        { ...vele, group: 'hitting', gamesPlayed: 134 },
+      ]);
     });
 
     it('rejects an unknown sport rather than defaulting silently', async () => {

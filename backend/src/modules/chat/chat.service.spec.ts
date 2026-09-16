@@ -60,9 +60,10 @@ describe('ChatService', () => {
       callTool,
     } as unknown as ToolRegistry;
     const sports = {
-      getCatalog: vi
-        .fn()
-        .mockResolvedValue({ defaultSeason: '2026', currentWeek: 2 }),
+      getCatalogs: vi.fn().mockResolvedValue([
+        { key: 'nfl', defaultSeason: '2026', currentWeek: 2 },
+        { key: 'mlb', defaultSeason: '2026', currentWeek: null },
+      ]),
     } as unknown as SportsService;
     return { service: new ChatService(ollama, tools, sports), callTool };
   };
@@ -88,6 +89,7 @@ describe('ChatService', () => {
 
     expect(ollama.sent[0][0].role).toBe(CHAT_ROLES.system);
     expect(ollama.sent[0][0].content).toContain('current NFL season is 2026, week 2');
+    expect(ollama.sent[0][0].content).toContain('current MLB season is 2026,');
     expect(ollama.stream).toHaveBeenCalledWith(
       expect.anything(),
       [

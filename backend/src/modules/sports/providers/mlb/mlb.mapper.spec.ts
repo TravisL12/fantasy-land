@@ -1,5 +1,12 @@
 import { MLB_GROUPS } from './mlb.constants.js';
-import { mapGameLog, mapSeasonSplits, parseInnings } from './mlb.mapper.js';
+import {
+  mapGameLog,
+  mapRoster,
+  mapSchedule,
+  mapSeasonSplits,
+  mapTeamStrength,
+  parseInnings,
+} from './mlb.mapper.js';
 import type { MlbSeasonSplit } from './mlb.types.js';
 
 const [hitting, pitching] = MLB_GROUPS;
@@ -80,5 +87,163 @@ describe('MLB mapper', () => {
       isHome: false,
       week: null,
     });
+  });
+});
+
+describe('MLB schedule mapper', () => {
+  it('maps probable pitchers to both sides of a game', () => {
+    const games = mapSchedule(
+      [
+        {
+          date: '2026-09-16',
+          games: [
+            {
+              gamePk: 824382,
+              officialDate: '2026-09-16',
+              status: { detailedState: 'Scheduled' },
+              teams: {
+                home: {
+                  team: { id: 143, name: 'Philadelphia Phillies' },
+                  probablePitcher: { id: 1, fullName: 'Zack Wheeler' },
+                },
+                away: {
+                  team: { id: 113, name: 'Cincinnati Reds' },
+                  probablePitcher: { id: 2, fullName: 'Hunter Greene' },
+                },
+              },
+            },
+          ],
+        },
+      ],
+      teams,
+    );
+
+    expect(games).toEqual([
+      {
+        gameId: '824382',
+        date: '2026-09-16',
+        status: 'Scheduled',
+        home: 'PHI',
+        away: 'CIN',
+        probables: {
+          home: {
+            playerId: '1',
+            name: 'Zack Wheeler',
+            team: 'PHI',
+            opponent: 'CIN',
+            isHome: true,
+          },
+          away: {
+            playerId: '2',
+            name: 'Hunter Greene',
+            team: 'CIN',
+            opponent: 'PHI',
+            isHome: false,
+          },
+        },
+      },
+    ]);
+  });
+
+  it('keeps a game whose starters have not been announced', () => {
+    const [game] = mapSchedule(
+      [
+        {
+          date: '2026-09-20',
+          games: [
+            {
+              gamePk: 1,
+              officialDate: '2026-09-20',
+              status: { detailedState: 'Scheduled' },
+              teams: {
+                home: { team: { id: 143 } },
+                away: { team: { id: 113 } },
+              },
+            },
+          ],
+        },
+      ],
+      teams,
+    );
+
+    expect(game.probables).toEqual({ home: null, away: null });
+  });
+});
+
+describe('MLB team strength mapper', () => {
+  it('merges a team’s hitting and pitching lines into one entry', () => {
+    const strength = mapTeamStrength(
+      [{ team: { id: 143 }, stat: { gamesPlayed: 150, runs: 684, ops: '.735' } }],
+      [{ team: { id: 143 }, stat: { gamesPlayed: 150, era: '3.47', whip: '1.18' } }],
+      teams,
+    );
+
+    expect(strength).toEqual([
+      {
+        team: 'PHI',
+        gamesPlayed: 150,
+        hitting: { gamesPlayed: 150, runs: 684, ops: 0.735 },
+        pitching: { gamesPlayed: 150, era: 3.47, whip: 1.18 },
+      },
+    ]);
+  });
+});
+
+describe('MLB roster mapper', () => {
+  it('normalizes injured-list wording into an availability', () => {
+    const players = mapRoster(
+      [
+        {
+          person: { id: 1, fullName: 'Healthy Hitter' },
+          position: { abbreviation: 'SS', type: 'Infielder' },
+          status: { code: 'A', description: 'Active' },
+        },
+        {
+          person: { id: 2, fullName: 'Hurt Hitter' },
+          position: { abbreviation: '1B', type: 'Infielder' },
+          status: { code: 'D10', description: 'Injured 10-Day' },
+        },
+        {
+          person: { id: 3, fullName: 'Season Ender' },
+          position: { abbreviation: 'P', type: 'Pitcher' },
+          // An unmapped code has to fall back to the wording.
+          status: { code: 'XX', description: 'Injured - Full Season' },
+        },
+        {
+          person: { id: 4, fullName: 'Farmhand' },
+          position: { abbreviation: 'CF', type: 'Outfielder' },
+          status: { code: 'RM', description: 'Reassigned to Minors' },
+        },
+      ],
+      'PHI',
+    );
+
+    expect(players.map(({ availability }) => availability)).toEqual([
+      'active',
+      'injured',
+      'injured',
+      'minors',
+    ]);
+    expect(players[1]).toMatchObject({
+      playerId: '2',
+      team: 'PHI',
+      position: '1B',
+      status: 'Injured 10-Day',
+    });
+  });
+
+  it('treats an unrecognizable status as unavailable rather than active', () => {
+    const [player] = mapRoster(
+      [
+        {
+          person: { id: 9, fullName: 'Mystery Man' },
+          status: { code: 'ZZ', description: 'Suspended' },
+        },
+      ],
+      'PHI',
+    );
+
+    expect(player.availability).toBe('inactive');
+    expect(player.position).toBeNull();
   });
 });

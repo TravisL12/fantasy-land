@@ -1,24 +1,36 @@
+import { AVAILABILITY } from '../../sports.constants.js';
 import type {
+  Availability,
   GameLogEntry,
   PlayerRef,
+  PlayerStatus,
+  ProbableStarter,
+  ScheduledGame,
   StatGroup,
   StatLine,
   StatValues,
+  TeamStrength,
 } from '../../sports.types.js';
-import { toNumber } from '../provider.utils.js';
+import { pickStats, toNumber } from '../provider.utils.js';
 import {
   MLB_DERIVED_STATS,
   MLB_GROUP_KEYS,
   MLB_PITCHER_POSITION_TYPE,
   MLB_PITCHER_ROLES,
   MLB_STARTER_SHARE,
+  MLB_STATUS_CODES,
+  MLB_STATUS_KEYWORDS,
+  MLB_TEAM_STAT_KEYS,
 } from './mlb.constants.js';
 import type {
   MlbGameLogSplit,
   MlbPerson,
   MlbRawStats,
   MlbRef,
+  MlbRosterEntry,
+  MlbScheduleResponse,
   MlbSeasonSplit,
+  MlbTeamStatSplit,
 } from './mlb.types.js';
 
 export type TeamAbbreviations = Record<number, string>;
@@ -107,4 +119,106 @@ export const mapGameLog = (
     opponent: teamAbbr(split.opponent, teams),
     isHome: split.isHome,
     stats: mapStats(split.stat, group),
+  }));
+
+export const mapSchedule = (
+  dates: MlbScheduleResponse['dates'],
+  teams: TeamAbbreviations,
+): ScheduledGame[] =>
+  dates.flatMap(({ games }) =>
+    games.flatMap((game) => {
+      const home = teamAbbr(game.teams.home.team, teams);
+      const away = teamAbbr(game.teams.away.team, teams);
+      if (!home || !away) return [];
+
+      const starter = (
+        side: 'home' | 'away',
+      ): ProbableStarter | null => {
+        const probable = game.teams[side].probablePitcher;
+        if (!probable) return null;
+        return {
+          playerId: String(probable.id),
+          name: probable.fullName,
+          team: side === 'home' ? home : away,
+          opponent: side === 'home' ? away : home,
+          isHome: side === 'home',
+        };
+      };
+
+      return [
+        {
+          gameId: String(game.gamePk),
+          date: game.officialDate,
+          status: game.status.detailedState,
+          home,
+          away,
+          probables: { home: starter('home'), away: starter('away') },
+        },
+      ];
+    }),
+  );
+
+export const mapTeamStrength = (
+  hitting: MlbTeamStatSplit[],
+  pitching: MlbTeamStatSplit[],
+  teams: TeamAbbreviations,
+): TeamStrength[] => {
+  const byTeam = new Map<string, TeamStrength>();
+
+  const merge = (
+    splits: MlbTeamStatSplit[],
+    side: 'hitting' | 'pitching',
+    keys: readonly string[],
+  ) => {
+    for (const split of splits) {
+      const team = teamAbbr(split.team, teams);
+      if (!team) continue;
+      const entry = byTeam.get(team) ?? {
+        team,
+        gamesPlayed: 0,
+        hitting: {},
+        pitching: {},
+      };
+      entry[side] = pickStats(split.stat, keys);
+      // Hitting games played is the team's own schedule; pitching matches it.
+      entry.gamesPlayed = Math.max(
+        entry.gamesPlayed,
+        toNumber(split.stat.gamesPlayed) ?? 0,
+      );
+      byTeam.set(team, entry);
+    }
+  };
+
+  merge(hitting, MLB_GROUP_KEYS.hitting, MLB_TEAM_STAT_KEYS.hitting);
+  merge(pitching, MLB_GROUP_KEYS.pitching, MLB_TEAM_STAT_KEYS.pitching);
+
+  return [...byTeam.values()];
+};
+
+/** Codes are authoritative; the wording is the fallback for the long tail. */
+export const availabilityFor = (status: {
+  code: string;
+  description: string;
+}): Availability => {
+  const byCode = MLB_STATUS_CODES[status.code.toUpperCase()];
+  if (byCode) return byCode;
+
+  const description = status.description.toLowerCase();
+  return (
+    MLB_STATUS_KEYWORDS.find(({ match }) => description.includes(match))
+      ?.availability ?? AVAILABILITY.inactive
+  );
+};
+
+export const mapRoster = (
+  entries: MlbRosterEntry[],
+  team: string | null,
+): PlayerStatus[] =>
+  entries.map((entry) => ({
+    playerId: String(entry.person.id),
+    name: entry.person.fullName,
+    team,
+    position: entry.position?.abbreviation ?? null,
+    status: entry.status.description,
+    availability: availabilityFor(entry.status),
   }));

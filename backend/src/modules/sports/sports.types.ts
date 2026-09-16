@@ -1,5 +1,10 @@
 import type {
+  AVAILABILITY,
+  START_CONFIDENCE,
   DATA_KINDS,
+  FORM_TRENDS,
+  MATCHUP_GRADES,
+  MATCHUP_SIDES,
   SORT_ORDERS,
   SPORT_KEYS,
   STAT_FORMATS,
@@ -107,6 +112,103 @@ export interface SportProvider {
   getGameLog(query: GameLogQuery): Promise<GameLog | null>;
 }
 
+export type Availability = ValueOf<typeof AVAILABILITY>;
+export type MatchupSide = ValueOf<typeof MATCHUP_SIDES>;
+export type MatchupGrade = ValueOf<typeof MATCHUP_GRADES>;
+export type FormTrend = ValueOf<typeof FORM_TRENDS>;
+
+export interface ProbableStarter {
+  playerId: string;
+  name: string;
+  team: string;
+  opponent: string;
+  isHome: boolean;
+}
+
+export interface ScheduledGame {
+  gameId: string;
+  date: string;
+  /** Upstream wording, e.g. "Scheduled", "In Progress", "Final". */
+  status: string;
+  home: string;
+  away: string;
+  probables: { home: ProbableStarter | null; away: ProbableStarter | null };
+}
+
+export interface ScheduleQuery {
+  season: string;
+  startDate: string;
+  endDate: string;
+}
+
+/** Season-to-date team production, the input to matchup ratings. */
+export interface TeamStrength {
+  team: string;
+  gamesPlayed: number;
+  hitting: StatValues;
+  pitching: StatValues;
+}
+
+/**
+ * One input to a matchup rating. `value` reads the opposing team's line, and
+ * `betterWhenHigh` says whether a high value is good *for the opponent*, so the
+ * engine can invert it into a difficulty score for the player we care about.
+ */
+export interface MatchupMetric {
+  key: string;
+  label: string;
+  betterWhenHigh: boolean;
+  value(team: TeamStrength): number | undefined;
+}
+
+export interface MatchupRating {
+  /** 0-100, where 100 is the easiest matchup in the league for this side. */
+  score: number;
+  grade: MatchupGrade;
+  metrics: { key: string; label: string; value: number; rank: number }[];
+}
+
+export type StartConfidence = ValueOf<typeof START_CONFIDENCE>;
+
+export interface ProjectedStart {
+  date: string;
+  opponent: string;
+  isHome: boolean;
+  confidence: StartConfidence;
+  matchup?: MatchupRating;
+}
+
+/** A pitcher's starts across a date window, confirmed and projected together. */
+export interface StartsReport {
+  player: PlayerRef;
+  starts: ProjectedStart[];
+  confirmedStarts: number;
+  /** Mean matchup score across the window, so two-start weeks can be compared. */
+  matchupScore: number | null;
+}
+
+export interface PlayerStatus {
+  playerId: string;
+  name: string;
+  team: string | null;
+  position: string | null;
+  /** Upstream wording, e.g. "Injured 10-Day". */
+  status: string;
+  availability: Availability;
+}
+
+/**
+ * Optional provider capability: fixtures, team strength and roster availability.
+ * A sport whose upstream has none of this simply doesn't implement it, and
+ * SportsService reports that rather than pretending the data exists.
+ */
+export interface LeagueDataProvider extends SportProvider {
+  readonly matchupMetrics: Record<MatchupSide, MatchupMetric[]>;
+  getSchedule(query: ScheduleQuery): Promise<ScheduledGame[]>;
+  getTeamStrength(season: string): Promise<TeamStrength[]>;
+  getPlayerStatuses(season: string): Promise<PlayerStatus[]>;
+}
+
 export interface ScoredStatLine extends StatLine {
   fantasyPoints: number;
   fantasyPointsPerGame: number;
@@ -125,4 +227,15 @@ export interface PointsSummary {
   stdDev: number;
   floor: number;
   ceiling: number;
+}
+
+/** Recent split measured against the season as a whole. */
+export interface FormReport {
+  window: number;
+  recent: PointsSummary;
+  season: PointsSummary;
+  /** Recent points per game minus season points per game. */
+  delta: number;
+  trend: FormTrend;
+  recentTotals: StatValues;
 }

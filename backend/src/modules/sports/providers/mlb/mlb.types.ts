@@ -50,3 +50,39 @@ export interface MlbPerson {
 export interface MlbPeopleResponse {
   people: MlbPerson[];
 }
+
+export interface MlbProbablePitcher {
+  id: number;
+  fullName: string;
+}
+
+export interface MlbScheduleTeam {
+  team: MlbRef;
+  probablePitcher?: MlbProbablePitcher;
+}
+
+export interface MlbScheduleGame {
+  gamePk: number;
+  officialDate: string;
+  status: { detailedState: string };
+  teams: { home: MlbScheduleTeam; away: MlbScheduleTeam };
+}
+
+export interface MlbScheduleResponse {
+  dates: { date: string; games: MlbScheduleGame[] }[];
+}
+
+export interface MlbTeamStatSplit {
+  team: MlbRef;
+  stat: MlbRawStats;
+}
+
+export interface MlbRosterEntry {
+  person: { id: number; fullName: string };
+  position?: MlbPosition;
+  status: { code: string; description: string };
+}
+
+export interface MlbRosterResponse {
+  roster: MlbRosterEntry[];
+}

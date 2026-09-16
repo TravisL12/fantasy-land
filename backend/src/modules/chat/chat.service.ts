@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { ToolRegistry } from '../tools/tools.registry.js';
 import type { ToolDefinition } from '../tools/tools.types.js';
-import { SPORT_KEYS } from '../sports/sports.constants.js';
 import { SportsService } from '../sports/sports.service.js';
 import {
   CHAT_EVENTS,
@@ -117,14 +116,19 @@ export class ChatService {
     }
   }
 
-  /** The season is looked up rather than left to the model to guess. */
+  /** Seasons are looked up per sport rather than left to the model to guess. */
   private async systemPrompt(): Promise<string> {
     try {
-      const { defaultSeason, currentWeek } = await this.sports.getCatalog(
-        SPORT_KEYS.nfl,
-      );
+      const catalogs = await this.sports.getCatalogs();
+      if (catalogs.length === 0) return SYSTEM_PROMPT;
+
       const today = new Date().toISOString().slice(0, 10);
-      return `${SYSTEM_PROMPT}\n\n${SEASON_CONTEXT(today, defaultSeason, currentWeek)}`;
+      const seasons = catalogs.map(({ key, defaultSeason, currentWeek }) => ({
+        sport: key,
+        season: defaultSeason,
+        week: currentWeek,
+      }));
+      return `${SYSTEM_PROMPT}\n\n${SEASON_CONTEXT(today, seasons)}`;
     } catch (error) {
       this.logger.warn(`Could not resolve the current season: ${String(error)}`);
       return SYSTEM_PROMPT;
