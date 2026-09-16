@@ -4,6 +4,7 @@ import {
   DEFAULT_CHAT_MAX_TOOL_ROUNDS,
   DEFAULT_OLLAMA_BASE_URL,
   DEFAULT_OLLAMA_MODEL,
+  DEFAULT_OLLAMA_NUM_CTX,
   DEFAULT_OLLAMA_TEMPERATURE,
   DEFAULT_OLLAMA_TIMEOUT_MS,
 } from './config.constants.js';
@@ -12,6 +13,8 @@ export interface ChatConfig {
   baseUrl: string;
   model: string;
   temperature: number;
+  /** Context window sent to Ollama; past this it drops the oldest messages. */
+  contextTokens: number;
   timeoutMs: number;
   /** How many assistant→tool→assistant turns one request may take. */
   maxToolRounds: number;
@@ -33,6 +36,7 @@ export const chatConfig = registerAs(
       process.env.OLLAMA_TEMPERATURE,
       DEFAULT_OLLAMA_TEMPERATURE,
     ),
+    contextTokens: number(process.env.OLLAMA_NUM_CTX, DEFAULT_OLLAMA_NUM_CTX),
     timeoutMs: number(process.env.OLLAMA_TIMEOUT_MS, DEFAULT_OLLAMA_TIMEOUT_MS),
     maxToolRounds: number(
       process.env.CHAT_MAX_TOOL_ROUNDS,

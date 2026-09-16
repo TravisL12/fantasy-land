@@ -75,6 +75,10 @@ export const SYSTEM_PROMPT = [
   'Player ids are the same across both for the NFL, so an id from one works in the other.',
   'Baseball ids come from find_player and are not interchangeable with Sleeper ids.',
   '',
+  'A tool result carrying a "_truncated" field is a complete, valid answer that was',
+  'cut down to fit: the rows you were given are real, so use them. Say the list was',
+  'shortened and offer to narrow it, rather than treating the result as an error.',
+  '',
   'If you are missing an id, look it up or ask for the Sleeper username — never guess one.',
   'Answer in a few short sentences, and say which numbers came from the tools.',
 ].join('\n');

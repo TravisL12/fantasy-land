@@ -39,7 +39,7 @@ export class OllamaClient {
     tools: OllamaTool[],
     signal: AbortSignal,
   ): AsyncGenerator<OllamaChatChunk> {
-    const { baseUrl, model, temperature, think } = this.settings;
+    const { baseUrl, model, temperature, contextTokens, think } = this.settings;
 
     let response: Response;
     try {
@@ -53,7 +53,7 @@ export class OllamaClient {
           ...(tools.length > 0 && { tools }),
           stream: true,
           think,
-          options: { temperature },
+          options: { temperature, num_ctx: contextTokens },
         }),
       });
     } catch (error) {

@@ -4,7 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { McpConfig, McpServerConfig } from '../../config/mcp.config.js';
 import { MCP_CONFIG_KEY } from '../../config/config.constants.js';
-import { truncate } from '../../common/text/truncate.js';
+import { serializeToolText } from '../../common/text/truncate.js';
 import { MCP_CLIENT_INFO, MCP_MESSAGES } from './mcp.constants.js';
 import type { McpToolDefinition, McpToolResult } from './mcp.types.js';
 
@@ -56,7 +56,7 @@ export class McpService implements OnModuleDestroy {
         arguments: args,
       });
       return {
-        text: truncate(toText(result.content)),
+        text: serializeToolText(toText(result.content)),
         isError: result.isError === true,
       };
     } catch (error) {

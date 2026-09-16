@@ -16,6 +16,12 @@ export const CHAT_CONFIG_KEY = 'chat';
 export const DEFAULT_OLLAMA_BASE_URL = 'http://host.docker.internal:11434';
 export const DEFAULT_OLLAMA_MODEL = 'qwen3.5:9b-q4_K_M';
 export const DEFAULT_OLLAMA_TEMPERATURE = 0.3;
+/**
+ * Ollama silently drops the oldest messages once a request exceeds the model's
+ * context window, so the system prompt and tool schemas have to be paid for
+ * explicitly. 16k fits those plus a few rounds of tool results on a 9b at q4.
+ */
+export const DEFAULT_OLLAMA_NUM_CTX = 16_384;
 /** Local models are slow; a long generation shouldn't look like a failure. */
 export const DEFAULT_OLLAMA_TIMEOUT_MS = 300_000;
 export const DEFAULT_CHAT_MAX_TOOL_ROUNDS = 6;

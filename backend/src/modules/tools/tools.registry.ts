@@ -1,5 +1,5 @@
 import { HttpException, Inject, Injectable, Logger } from '@nestjs/common';
-import { truncate } from '../../common/text/truncate.js';
+import { serializeToolResult } from '../../common/text/truncate.js';
 import { McpService } from '../mcp/mcp.service.js';
 import { FANTASY_TOOLS, TOOL_MESSAGES } from './tools.constants.js';
 import type { FantasyTool, ToolDefinition, ToolResult } from './tools.types.js';
@@ -69,7 +69,7 @@ export class ToolRegistry {
   ): Promise<ToolResult> {
     try {
       return {
-        text: truncate(JSON.stringify(await tool.execute(args))),
+        text: serializeToolResult(await tool.execute(args)),
         isError: false,
       };
     } catch (error) {
