@@ -92,6 +92,31 @@ describe('ChatPage', () => {
     ]);
   });
 
+  it('renders a streamed markdown table, not raw pipes', async () => {
+    stubFetch([
+      { type: 'token', text: '| Player | PPR |\n| --- | --- |\n' },
+      { type: 'token', text: '| Puka Nacua | 375 |\n' },
+      { type: 'done' },
+    ]);
+    renderWithProviders(<ChatPage />);
+
+    ask('top WR?');
+
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Puka Nacua' })).toBeInTheDocument();
+  });
+
+  it('leaves the user\'s own text literal', async () => {
+    stubFetch([{ type: 'token', text: 'ok' }, { type: 'done' }]);
+    renderWithProviders(<ChatPage />);
+
+    ask('compare **Bijan** and Gibbs');
+
+    expect(
+      await screen.findByText('compare **Bijan** and Gibbs'),
+    ).toBeInTheDocument();
+  });
+
   it('surfaces a model error', async () => {
     stubFetch([
       { type: 'error', message: 'Could not reach Ollama' },

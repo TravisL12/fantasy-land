@@ -12,7 +12,6 @@ export const Bubble = styled.div<{ $role: ChatRole }>`
   padding: ${({ theme }) => theme.spacing(3)};
   border-radius: ${({ theme }) => theme.radii.lg};
   line-height: 1.55;
-  white-space: pre-wrap;
   word-break: break-word;
 
   ${({ theme, $role }) =>
@@ -37,6 +36,11 @@ export const Thinking = styled.details`
     margin: ${({ theme }) => theme.spacing(1)} 0 0;
     white-space: pre-wrap;
   }
+`;
+
+/** What the user typed is shown literally — only the model's output is markdown. */
+export const PlainText = styled.span`
+  white-space: pre-wrap;
 `;
 
 export const Muted = styled.span`

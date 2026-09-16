@@ -1,7 +1,15 @@
 import { CHAT_ROLES } from '@/api/chat';
+import { Markdown } from '@/components/Markdown';
 import { CHAT_COPY } from '../../ChatPage.constants';
 import { ToolCallList } from '../ToolCallList';
-import { Bubble, Caret, Muted, Row, Thinking } from './MessageBubble.styles';
+import {
+  Bubble,
+  Caret,
+  Muted,
+  PlainText,
+  Row,
+  Thinking,
+} from './MessageBubble.styles';
 import type { MessageBubbleProps } from './MessageBubble.types';
 
 export const MessageBubble = ({ turn, isStreaming }: MessageBubbleProps) => {
@@ -19,7 +27,13 @@ export const MessageBubble = ({ turn, isStreaming }: MessageBubbleProps) => {
           </Thinking>
         )}
         {isAssistant && <ToolCallList calls={toolCalls} />}
-        {isEmpty ? <Muted>{CHAT_COPY.emptyAnswer}</Muted> : content}
+        {isEmpty && <Muted>{CHAT_COPY.emptyAnswer}</Muted>}
+        {content &&
+          (isAssistant ? (
+            <Markdown>{content}</Markdown>
+          ) : (
+            <PlainText>{content}</PlainText>
+          ))}
         {isStreaming && <Caret />}
       </Bubble>
     </Row>
