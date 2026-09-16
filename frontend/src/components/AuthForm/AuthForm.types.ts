@@ -17,6 +17,6 @@ export interface AuthFormProps<TName extends string> {
   submittingLabel: string;
   isSubmitting: boolean;
   error?: string;
-  footer: ReactNode;
+  footer?: ReactNode;
   onSubmit: (values: AuthFormValues<TName>) => void;
 }

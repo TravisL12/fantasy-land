@@ -1,7 +1,5 @@
-import { Link } from 'react-router';
 import { useLoginMutation } from '@/api/auth';
 import { AuthForm } from '@/components/AuthForm';
-import { ROUTES } from '@/router/routes.constants';
 import { getApiErrorMessage } from '@/utils';
 import { LOGIN_COPY, LOGIN_FIELDS } from './LoginPage.constants';
 
@@ -18,12 +16,6 @@ export const LoginPage = () => {
       isSubmitting={isLoading}
       error={getApiErrorMessage(error)}
       onSubmit={login}
-      footer={
-        <>
-          {LOGIN_COPY.footerPrompt}{' '}
-          <Link to={ROUTES.register}>{LOGIN_COPY.footerLink}</Link>
-        </>
-      }
     />
   );
 };

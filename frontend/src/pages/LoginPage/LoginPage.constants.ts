@@ -4,8 +4,6 @@ export const LOGIN_COPY = {
   title: 'Log in',
   submit: 'Log in',
   submitting: 'Logging in…',
-  footerPrompt: 'New here?',
-  footerLink: 'Create an account',
 } as const;
 
 export const LOGIN_FIELDS = [

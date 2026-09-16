@@ -4,7 +4,5 @@ export const USER_MENU_COPY = {
   logout: 'Log out',
 } as const;
 
-export const GUEST_LINKS = [
-  { label: 'Log in', to: ROUTES.login },
-  { label: 'Sign up', to: ROUTES.register },
-] as const;
+// Sign-up is intentionally absent: /register still works, it is just not advertised.
+export const GUEST_LINKS = [{ label: 'Log in', to: ROUTES.login }] as const;

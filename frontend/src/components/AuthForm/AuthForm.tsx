@@ -44,7 +44,7 @@ export const AuthForm = <TName extends string>({
       <Button type="submit" disabled={isSubmitting}>
         {isSubmitting ? submittingLabel : submitLabel}
       </Button>
-      <Footer>{footer}</Footer>
+      {footer && <Footer>{footer}</Footer>}
     </Card>
   );
 };
