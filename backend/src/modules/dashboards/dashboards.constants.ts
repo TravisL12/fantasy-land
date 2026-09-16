@@ -9,6 +9,12 @@ export const DASHBOARDS_ROUTES = {
 export const WIDGET_TYPES = {
   table: 'table',
   compare: 'compare',
+  line: 'line',
+  bar: 'bar',
+  versus: 'versus',
+  stats: 'stats',
+  meter: 'meter',
+  badges: 'badges',
 } as const;
 
 /** Cell formats a column may ask for — the numeric ones match the stats formatter. */
@@ -25,6 +31,12 @@ export const CELL_ALIGNMENTS = { left: 'left', right: 'right' } as const;
 
 export const SORT_ORDERS = { asc: 'asc', desc: 'desc' } as const;
 
+/** Which direction wins when two entities are compared on a metric. */
+export const BETTER_DIRECTIONS = { higher: 'higher', lower: 'lower' } as const;
+
+/** How wide a widget sits in the dashboard grid. */
+export const WIDGET_WIDTHS = { full: 'full', half: 'half' } as const;
+
 /** The builder's own stream event, alongside the chat events. */
 export const DASHBOARD_EVENTS = { spec: 'dashboard_spec' } as const;
 
@@ -32,14 +44,23 @@ export const BUILD_DASHBOARD_TOOL = 'build_dashboard';
 
 export const DEFAULT_ROWS_PATH = 'rows';
 export const DEFAULT_ROW_KEY = 'id';
+export const DEFAULT_LABEL_PATH = 'name';
+/** compare_players and compare_teams both answer with a "players"/"teams" array. */
+export const DEFAULT_VERSUS_ROWS_PATH = 'players';
+export const DEFAULT_METER_MAX = 100;
 
 export const SPEC_LIMITS = {
   title: 80,
   description: 240,
   sources: 6,
-  widgets: 6,
+  widgets: 8,
   columns: 24,
   rows: 200,
+  /** Past four lines on one chart no palette keeps the series apart. */
+  series: 4,
+  tiles: 6,
+  meters: 12,
+  badges: 16,
 } as const;
 
 export const DASHBOARD_LIMITS = {
@@ -53,12 +74,23 @@ export const DASHBOARD_MESSAGES = {
     'The model finished without calling build_dashboard, so there is nothing to render yet. Ask it again, more specifically.',
   unknownTool: (name: string, known: string[]) =>
     `Unknown data tool "${name}". Use one of: ${known.join(', ')}.`,
+  unknownSource: (widget: string, source: string, known: string[]) =>
+    `Widget "${widget}" points at source "${source}", which is not defined. Sources: ${known.join(', ') || 'none'}.`,
+  needSeries: (widget: string) =>
+    `Chart "${widget}" needs at least one entry in "series", each with a "path" to a number in a row.`,
+  tooManySeries: (widget: string) =>
+    `Chart "${widget}" has more than ${SPEC_LIMITS.series} series. Split it into two charts — past ${SPEC_LIMITS.series} lines no palette keeps them apart.`,
+  needMetrics: (widget: string) =>
+    `Versus "${widget}" needs "metrics": the numbers the two entities are compared on.`,
 } as const;
 
 /**
  * The builder gets the full stats tool set so it can look at a real result
- * before designing columns — a small model that designs blind invents field
+ * before designing widgets — a small model that designs blind invents field
  * names, and every cell then renders empty.
+ *
+ * Kept deliberately terse: it is paid for out of OLLAMA_NUM_CTX on every round,
+ * against the tool results the model actually needs to read.
  */
 export const BUILDER_SYSTEM_PROMPT = [
   'You are the dashboard builder for Fantasy Land. The user describes a view of',
@@ -66,57 +98,94 @@ export const BUILDER_SYSTEM_PROMPT = [
   '',
   'Work in two steps, every time:',
   '1. Call the data tool you intend to use (get_leaderboard, get_player_game_log,',
-  '   get_probable_pitchers, ...) with the exact arguments you plan to save, and read',
-  '   its result to learn the real field names.',
-  '2. Call build_dashboard, where every column "path" is a field you actually saw.',
+  '   compare_players, get_matchup_ratings, ...) with the exact arguments you plan to',
+  '   save, and read its result to learn the real field names.',
+  '2. Call build_dashboard, where every "path" is a field you actually saw.',
   '',
   'A dashboard is sources plus widgets.',
-  '- A source is a tool call that is re-run every time the dashboard is opened, so',
-  '  pick arguments that stay right later: prefer a season over a fixed date range.',
-  '- A source\'s "args" are that tool\'s own arguments, so a "sort" there is a stat',
+  '- A source is a tool call re-run every time the dashboard is opened, so pick',
+  '  arguments that stay right later: prefer a season over a fixed date range.',
+  "- A source's \"args\" are that tool's own arguments, so a \"sort\" there is a stat",
   '  key such as "homeRuns", never a dot path. Sorting the source picks *which*',
-  '  players come back, so get it right — the table\'s own "sort" only reorders them.',
-  '- A table widget renders one source. "rowsPath" is the dot path to the array in',
-  '  the result ("rows" for most tools); each column "path" is a dot path inside one',
-  '  row ("name", "fantasyPoints", "stats.hr").',
-  '- A compare widget reads the rows the user ticked in a table and puts them side by',
-  '  side. Add one whenever the user wants to compare, pick between, or shortlist',
-  '  players, and point its "from" at the table id.',
+  '  players come back; a table\'s own "sort" only reorders them.',
+  '- "rowsPath" is the dot path to the array in a result ("rows" for most tools,',
+  '  "games" for a game log, "players" for compare_players). Every other "path" is a',
+  '  dot path inside one row ("name", "fantasyPoints", "stats.hr").',
+  '- Give each widget "width": "half" to sit two per row, "full" for the whole row.',
+  '  Tables and charts want "full"; stat tiles, meters and badges read well at "half".',
   '',
-  'Column "format": "text" for names and teams, "int" for counts, "decimal" for',
-  'points and averages, "rate" for batting-average style numbers, "percent", or',
-  '"innings". Use "text" alignment defaults — leave "align" out unless you need it.',
+  'Widget kinds:',
+  '- table: rows and columns. "selectable" lets the user tick rows.',
+  '- compare: transposes the rows ticked in a table ("from": the table id). Use it',
+  '  when the user wants to shortlist from a list.',
+  '- versus: a direct head-to-head of the 2-4 entities in one source, no ticking.',
+  '  Point it at compare_players or compare_teams and give it "metrics". This is the',
+  '  right widget for "player A vs player B".',
+  '- line: a trend. "x" is the path to the time axis (a game log\'s "week" or "date");',
+  '  each entry in "series" is one line. A series may name its own "source", so two',
+  '  players\' game logs become two lines on one chart. Max ' + SPEC_LIMITS.series + ' series.',
+  '- bar: magnitude across categories. "x" is the category (usually "name"); one',
+  '  series is the norm. Set "horizontal": true when the labels are player names.',
+  '- stats: a row of headline numbers from one object — "path" points at the object',
+  '  (e.g. "consistency"), each tile reads a field inside it.',
+  '- meter: a 0-100 rating with its grade, one per row. Made for get_matchup_ratings.',
+  '- badges: short status chips per row, e.g. availability or hot/cold form.',
+  '',
+  'Column and tile "format": "text" for names and teams, "int" for counts, "decimal"',
+  'for points and averages, "rate" for batting-average style numbers, "percent",',
+  '"innings". On a versus metric, add "better": "lower" where a smaller number wins',
+  '(volatility); it defaults to "higher".',
   '',
   'Example build_dashboard arguments:',
   JSON.stringify(
     {
-      title: 'Top NFL wide receivers',
-      description: 'PPR leaders this season, with a compare panel.',
+      title: 'Saquon vs Gibbs',
+      description: 'PPR season to date, with weekly trend.',
       sources: [
         {
-          id: 'wrs',
-          tool: 'get_leaderboard',
-          args: { sport: 'nfl', season: '2025', position: 'WR', scoring: 'ppr', limit: 40 },
+          id: 'head',
+          tool: 'compare_players',
+          args: { sport: 'nfl', playerIds: ['4866', '9509'], scoring: 'ppr' },
+        },
+        {
+          id: 'log_a',
+          tool: 'get_player_game_log',
+          args: { sport: 'nfl', playerId: '4866', scoring: 'ppr' },
+        },
+        {
+          id: 'log_b',
+          tool: 'get_player_game_log',
+          args: { sport: 'nfl', playerId: '9509', scoring: 'ppr' },
         },
       ],
       widgets: [
         {
-          type: 'table',
-          id: 'wr_table',
-          title: 'WR leaders',
-          source: 'wrs',
-          rowsPath: 'rows',
-          selectable: true,
-          sort: { key: 'points', order: 'desc' },
-          columns: [
-            { key: 'name', header: 'Player', path: 'name', format: 'text' },
-            { key: 'team', header: 'Team', path: 'team', format: 'text' },
-            { key: 'points', header: 'FPTS', path: 'fantasyPoints', format: 'decimal', highlight: true },
-            { key: 'ppg', header: 'PPG', path: 'fantasyPointsPerGame', format: 'decimal' },
-            { key: 'rec', header: 'REC', path: 'stats.rec', format: 'int' },
+          type: 'versus',
+          id: 'vs',
+          title: 'Head to head',
+          source: 'head',
+          rowsPath: 'players',
+          labelPath: 'name',
+          width: 'full',
+          metrics: [
+            { key: 'ppg', header: 'Points per game', path: 'pointsPerGame', format: 'decimal' },
+            { key: 'floor', header: 'Floor', path: 'floor', format: 'decimal' },
+            { key: 'vol', header: 'Volatility', path: 'volatility', format: 'decimal', better: 'lower' },
           ],
         },
-        { type: 'compare', id: 'wr_compare', title: 'Selected receivers', from: 'wr_table' },
+        {
+          type: 'line',
+          id: 'trend',
+          title: 'Weekly points',
+          source: 'log_a',
+          rowsPath: 'games',
+          width: 'full',
+          x: { path: 'week', label: 'Week' },
+          series: [
+            { key: 'saquon', label: 'Barkley', path: 'fantasyPoints' },
+            { key: 'gibbs', label: 'Gibbs', path: 'fantasyPoints', source: 'log_b' },
+          ],
+        },
       ],
     },
     null,

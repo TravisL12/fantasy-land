@@ -1,10 +1,12 @@
 import type { ChatStreamEvent } from '../chat/chat.types.js';
 import type {
+  BETTER_DIRECTIONS,
   CELL_ALIGNMENTS,
   CELL_FORMATS,
   DASHBOARD_EVENTS,
   SORT_ORDERS,
   WIDGET_TYPES,
+  WIDGET_WIDTHS,
 } from './dashboards.constants.js';
 import type { dashboards } from './dashboards.schema.js';
 
@@ -14,6 +16,8 @@ export type WidgetType = ValueOf<typeof WIDGET_TYPES>;
 export type CellFormat = ValueOf<typeof CELL_FORMATS>;
 export type CellAlign = ValueOf<typeof CELL_ALIGNMENTS>;
 export type SortOrder = ValueOf<typeof SORT_ORDERS>;
+export type BetterDirection = ValueOf<typeof BETTER_DIRECTIONS>;
+export type WidgetWidth = ValueOf<typeof WIDGET_WIDTHS>;
 
 /**
  * One tool call the dashboard re-runs every time it is opened. This is what
@@ -35,15 +39,26 @@ export interface DashboardColumn {
   sortable?: boolean;
   /** Emphasize the column (e.g. fantasy points). */
   highlight?: boolean;
+  /** Which way wins when this metric is compared. Defaults to "higher". */
+  better?: BetterDirection;
 }
 
-export interface TableWidget {
-  type: typeof WIDGET_TYPES.table;
+/** What every widget carries: identity, a heading and its slot in the grid. */
+interface WidgetBase {
   id: string;
   title: string;
+  width?: WidgetWidth;
+}
+
+/** A widget that renders one source's rows directly. */
+interface SourcedWidget extends WidgetBase {
   source: string;
-  /** Dot path to the array inside the tool's result. Defaults to "rows". */
+  /** Dot path to the array inside the tool's result. */
   rowsPath?: string;
+}
+
+export interface TableWidget extends SourcedWidget {
+  type: typeof WIDGET_TYPES.table;
   /** Dot path to a stable row id. Defaults to "id". */
   rowKey?: string;
   columns: DashboardColumn[];
@@ -54,17 +69,91 @@ export interface TableWidget {
 }
 
 /** Puts the rows selected in a table side by side, one column per selection. */
-export interface CompareWidget {
+export interface CompareWidget extends WidgetBase {
   type: typeof WIDGET_TYPES.compare;
-  id: string;
-  title: string;
   /** Id of the table widget whose selection drives this panel. */
   from: string;
   /** Metrics to compare. Defaults to the table's own columns. */
   metrics?: DashboardColumn[];
 }
 
-export type DashboardWidget = TableWidget | CompareWidget;
+/**
+ * The same panel without the ticking: the entities come straight from a source,
+ * which is what compare_players and compare_teams already return.
+ */
+export interface VersusWidget extends SourcedWidget {
+  type: typeof WIDGET_TYPES.versus;
+  /** Dot path to each entity's display name. Defaults to "name". */
+  labelPath?: string;
+  metrics: DashboardColumn[];
+}
+
+/** One line on a chart. It may read its own source, so two logs can share an axis. */
+export interface ChartSeries {
+  key: string;
+  label: string;
+  path: string;
+  format?: CellFormat;
+  /** Defaults to the widget's own source. */
+  source?: string;
+  rowsPath?: string;
+}
+
+export interface ChartAxis {
+  path: string;
+  label?: string;
+  format?: CellFormat;
+}
+
+export interface ChartWidget extends SourcedWidget {
+  type: typeof WIDGET_TYPES.line | typeof WIDGET_TYPES.bar;
+  x: ChartAxis;
+  series: ChartSeries[];
+  /** bar only: stack the series instead of grouping them. */
+  stacked?: boolean;
+  /** bar only: run the bars along the x axis, for long category names. */
+  horizontal?: boolean;
+  limit?: number;
+}
+
+/** A row of headline numbers read out of one object in the result. */
+export interface StatsWidget extends WidgetBase {
+  type: typeof WIDGET_TYPES.stats;
+  source: string;
+  /** Dot path to the object holding the values. Defaults to the whole result. */
+  path?: string;
+  tiles: DashboardColumn[];
+}
+
+/** A 0-100 rating with its grade, one per row — built for get_matchup_ratings. */
+export interface MeterWidget extends SourcedWidget {
+  type: typeof WIDGET_TYPES.meter;
+  labelPath?: string;
+  valuePath: string;
+  /** Dot path to a short qualitative label shown beside the value. */
+  gradePath?: string;
+  max?: number;
+  limit?: number;
+}
+
+/** Short status chips per row: availability, hot/cold form, confirmed/projected. */
+export interface BadgesWidget extends SourcedWidget {
+  type: typeof WIDGET_TYPES.badges;
+  labelPath?: string;
+  statusPath: string;
+  /** Dot path to a line of detail under the chip. */
+  notePath?: string;
+  limit?: number;
+}
+
+export type DashboardWidget =
+  | TableWidget
+  | CompareWidget
+  | VersusWidget
+  | ChartWidget
+  | StatsWidget
+  | MeterWidget
+  | BadgesWidget;
 
 export interface DashboardSpec {
   title: string;

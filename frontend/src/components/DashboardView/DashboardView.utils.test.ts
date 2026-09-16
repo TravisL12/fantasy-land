@@ -1,11 +1,20 @@
-import { WIDGET_TYPES, type DashboardSpec, type TableWidget } from '@/api/dashboards';
+import {
+  WIDGET_TYPES,
+  type ChartWidget,
+  type DashboardSpec,
+  type TableWidget,
+} from '@/api/dashboards';
 import { EMPTY_STAT } from '@/utils';
 import {
+  bestValue,
+  chartPoints,
   compareValues,
   formatCell,
   getPath,
   resolveRows,
   resolveTableRows,
+  statusTone,
+  widgetSources,
 } from './DashboardView.utils';
 
 const table: TableWidget = {
@@ -80,5 +89,101 @@ describe('compareValues', () => {
 
   it('falls back to alphabetical', () => {
     expect(compareValues('Acuna', 'Betts')).toBeLessThan(0);
+  });
+});
+
+describe('chartPoints', () => {
+  const chart: ChartWidget = {
+    type: WIDGET_TYPES.line,
+    id: 'trend',
+    title: 'Weekly points',
+    source: 'log_a',
+    rowsPath: 'games',
+    x: { path: 'week' },
+    series: [
+      { key: 'a', label: 'Barkley', path: 'fantasyPoints' },
+      { key: 'b', label: 'Gibbs', path: 'fantasyPoints', source: 'log_b' },
+    ],
+  };
+
+  const run = {
+    ranAt: '2026-09-16T12:00:00.000Z',
+    results: {
+      log_a: { data: { games: [{ week: 2, fantasyPoints: 18.4 }, { week: 1, fantasyPoints: 9 }] } },
+      log_b: { data: { games: [{ week: 1, fantasyPoints: 12.2 }] } },
+    },
+  };
+
+  it('reads each series from its own source', () => {
+    expect(chartPoints(chart, run)).toEqual([
+      { x: 2, y: 18.4, series: 'Barkley' },
+      { x: 1, y: 9, series: 'Barkley' },
+      { x: 1, y: 12.2, series: 'Gibbs' },
+    ]);
+  });
+
+  it('drops points whose value is not a number, rather than plotting them as zero', () => {
+    const withGap = {
+      ...run,
+      results: {
+        ...run.results,
+        log_a: { data: { games: [{ week: 1, fantasyPoints: null }] } },
+      },
+    };
+
+    expect(chartPoints(chart, withGap).filter(({ series }) => series === 'Barkley')).toEqual([]);
+  });
+});
+
+describe('widgetSources', () => {
+  it('lists every source a chart reads', () => {
+    expect(
+      widgetSources({
+        type: WIDGET_TYPES.bar,
+        id: 'bars',
+        title: 'Points',
+        source: 'top',
+        x: { path: 'name' },
+        series: [
+          { key: 'a', label: 'A', path: 'points' },
+          { key: 'b', label: 'B', path: 'points', source: 'other' },
+        ],
+      }),
+    ).toEqual(['top', 'other']);
+  });
+
+  it('gives a compare widget no sources of its own', () => {
+    expect(
+      widgetSources({
+        type: WIDGET_TYPES.compare,
+        id: 'vs',
+        title: 'Compare',
+        from: 'hitters',
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe('bestValue', () => {
+  it('picks the highest by default and the lowest where less is better', () => {
+    expect(bestValue([12, 18.4])).toBe(18.4);
+    expect(bestValue([12, 18.4], 'lower')).toBe(12);
+  });
+
+  it('marks no winner on a tie or a lone value', () => {
+    expect(bestValue([12, 12])).toBeUndefined();
+    expect(bestValue([12, undefined])).toBeUndefined();
+  });
+});
+
+describe('statusTone', () => {
+  it('maps league wording onto the reserved status colors', () => {
+    expect(statusTone('Active')).toBe('good');
+    expect(statusTone('60-day IL')).toBe('critical');
+    expect(statusTone('projected')).toBe('warning');
+  });
+
+  it('leaves anything it does not recognise neutral', () => {
+    expect(statusTone('paternity list')).toBe('neutral');
   });
 });

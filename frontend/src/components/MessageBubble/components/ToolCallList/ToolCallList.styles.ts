@@ -1,7 +1,7 @@
-import styled from 'styled-components';
+import styled, { type DefaultTheme } from 'styled-components';
 import type { ToolStatus } from '@/types';
 
-const statusColor = (theme: { colors: Record<string, string> }) => ({
+const statusColor = (theme: DefaultTheme) => ({
   running: theme.colors.textMuted,
   ok: theme.colors.success,
   error: theme.colors.danger,

@@ -95,6 +95,193 @@ describe('parseSpec', () => {
     ).toThrow(/not one of its columns/);
   });
 
+  it('parses a chart, defaulting each series to the widget source', () => {
+    const parsed = parseSpec(
+      {
+        ...spec,
+        sources: [
+          ...spec.sources,
+          { id: 'log', tool: 'get_player_game_log', args: { playerId: '1' } },
+        ],
+        widgets: [
+          {
+            type: WIDGET_TYPES.line,
+            id: 'trend',
+            title: 'Weekly points',
+            source: 'log',
+            rowsPath: 'games',
+            width: 'full',
+            x: { path: 'week', label: 'Week' },
+            series: [
+              { key: 'pts', label: 'Points', path: 'fantasyPoints' },
+              { key: 'other', label: 'Other', path: 'fantasyPoints', source: 'top' },
+            ],
+          },
+        ],
+      },
+      TOOLS,
+    );
+
+    expect(parsed.widgets[0]).toMatchObject({
+      type: 'line',
+      x: { path: 'week', label: 'Week' },
+      series: [
+        { key: 'pts', source: undefined },
+        { key: 'other', source: 'top' },
+      ],
+    });
+  });
+
+  it('rejects a chart series reading a source that does not exist', () => {
+    expect(() =>
+      parseSpec(
+        {
+          ...spec,
+          widgets: [
+            {
+              type: WIDGET_TYPES.bar,
+              id: 'bars',
+              title: 'Points',
+              source: 'top',
+              x: { path: 'name' },
+              series: [{ key: 'pts', label: 'Points', path: 'fantasyPoints', source: 'ghost' }],
+            },
+          ],
+        },
+        TOOLS,
+      ),
+    ).toThrow(/not defined/);
+  });
+
+  it('rejects a chart with more series than the palette can keep apart', () => {
+    const series = ['a', 'b', 'c', 'd', 'e'].map((key) => ({
+      key,
+      label: key,
+      path: 'fantasyPoints',
+    }));
+
+    expect(() =>
+      parseSpec(
+        {
+          ...spec,
+          widgets: [
+            {
+              type: WIDGET_TYPES.line,
+              id: 'trend',
+              title: 'Trend',
+              source: 'top',
+              x: { path: 'week' },
+              series,
+            },
+          ],
+        },
+        TOOLS,
+      ),
+    ).toThrow(/Split it into two charts/);
+  });
+
+  it('parses a versus widget and keeps a metric\'s winning direction', () => {
+    const parsed = parseSpec(
+      {
+        ...spec,
+        widgets: [
+          {
+            type: WIDGET_TYPES.versus,
+            id: 'vs',
+            title: 'Head to head',
+            source: 'top',
+            rowsPath: 'players',
+            metrics: [
+              { key: 'ppg', header: 'PPG', path: 'pointsPerGame', format: 'decimal' },
+              { key: 'vol', header: 'Volatility', path: 'volatility', better: 'lower' },
+            ],
+          },
+        ],
+      },
+      TOOLS,
+    );
+
+    expect(parsed.widgets[0]).toMatchObject({
+      type: 'versus',
+      rowsPath: 'players',
+      metrics: [{ key: 'ppg', better: undefined }, { key: 'vol', better: 'lower' }],
+    });
+  });
+
+  it('rejects a versus widget with no metrics', () => {
+    expect(() =>
+      parseSpec(
+        {
+          ...spec,
+          widgets: [
+            { type: WIDGET_TYPES.versus, id: 'vs', title: 'Head to head', source: 'top' },
+          ],
+        },
+        TOOLS,
+      ),
+    ).toThrow(/needs "metrics"/);
+  });
+
+  it('parses stats, meter and badges widgets', () => {
+    const parsed = parseSpec(
+      {
+        ...spec,
+        widgets: [
+          {
+            type: WIDGET_TYPES.stats,
+            id: 'headline',
+            title: 'Season',
+            source: 'top',
+            path: 'consistency',
+            width: 'half',
+            tiles: [{ key: 'avg', header: 'PPG', path: 'average', format: 'decimal' }],
+          },
+          {
+            type: WIDGET_TYPES.meter,
+            id: 'matchups',
+            title: 'Matchups',
+            source: 'top',
+            valuePath: 'score',
+            gradePath: 'grade',
+          },
+          {
+            type: WIDGET_TYPES.badges,
+            id: 'status',
+            title: 'Availability',
+            source: 'top',
+            statusPath: 'availability',
+            notePath: 'note',
+          },
+        ],
+      },
+      TOOLS,
+    );
+
+    expect(parsed.widgets.map(({ type }) => type)).toEqual(['stats', 'meter', 'badges']);
+    expect(parsed.widgets[0]).toMatchObject({ width: 'half', path: 'consistency' });
+    expect(parsed.widgets[1]).toMatchObject({ valuePath: 'score', gradePath: 'grade' });
+  });
+
+  it('rejects a meter with no value to render', () => {
+    expect(() =>
+      parseSpec(
+        {
+          ...spec,
+          widgets: [
+            { type: WIDGET_TYPES.meter, id: 'm', title: 'Matchups', source: 'top' },
+          ],
+        },
+        TOOLS,
+      ),
+    ).toThrow(/"valuePath" on meter "m" is required/);
+  });
+
+  it('rejects an unknown widget width', () => {
+    expect(() =>
+      parseSpec({ ...spec, widgets: [{ ...table, width: 'wide' }] }, TOOLS),
+    ).toThrow(/"width" must be one of/);
+  });
+
   it('rejects duplicate widget ids', () => {
     expect(() =>
       parseSpec({ ...spec, widgets: [table, { ...table }] }, TOOLS),

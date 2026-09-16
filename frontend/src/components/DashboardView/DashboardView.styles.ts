@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { WIDGET_WIDTHS, type WidgetWidth } from '@/api/dashboards';
 
 export const Shell = styled.section`
   display: flex;
@@ -17,10 +18,28 @@ export const Updated = styled.span`
   font-size: 0.85rem;
 `;
 
-export const Widget = styled.article`
+/** Two columns, so tiles and meters can sit beside each other rather than stack. */
+export const Grid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: ${({ theme }) => theme.spacing(6)};
+
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`;
+
+export const Widget = styled.article<{ $width?: WidgetWidth }>`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing(3)};
+  min-width: 0;
+  grid-column: ${({ $width }) =>
+    $width === WIDGET_WIDTHS.half ? 'span 1' : 'span 2'};
+
+  @media (max-width: 900px) {
+    grid-column: span 1;
+  }
 `;
 
 export const WidgetTitle = styled.h3`

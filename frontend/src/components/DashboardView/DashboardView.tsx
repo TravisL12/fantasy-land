@@ -1,13 +1,24 @@
 import { useCallback, useMemo, useState } from 'react';
-import { WIDGET_TYPES, type TableWidget } from '@/api/dashboards';
+import {
+  DEFAULT_VERSUS_ROWS_PATH,
+  WIDGET_TYPES,
+  type DashboardWidget,
+  type TableWidget,
+} from '@/api/dashboards';
 import { Button } from '@/components/Button';
 import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
+import { BadgeList } from './components/BadgeList';
 import { ComparePanel } from './components/ComparePanel';
 import { DashboardTable } from './components/DashboardTable';
+import { MeterList } from './components/MeterList';
+import { StatTiles } from './components/StatTiles';
+import { VersusPanel } from './components/VersusPanel';
+import { WidgetChart } from './components/WidgetChart';
 import { DASHBOARD_VIEW_COPY } from './DashboardView.constants';
 import { useDashboardRun } from './DashboardView.hooks';
 import {
   Description,
+  Grid,
   Shell,
   Toolbar,
   Updated,
@@ -15,7 +26,13 @@ import {
   WidgetTitle,
 } from './DashboardView.styles';
 import type { DashboardViewProps, Selection } from './DashboardView.types';
-import { resolveTableRows, tableWidgets } from './DashboardView.utils';
+import {
+  getPath,
+  resolveTableRows,
+  tableWidgets,
+  widgetRows,
+  widgetSources,
+} from './DashboardView.utils';
 
 /**
  * Renders a spec against freshly fetched data. Everything interactive — sorting,
@@ -52,6 +69,82 @@ export const DashboardView = ({ spec, actions }: DashboardViewProps) => {
     return (rowsByTable[table.id] ?? []).filter((row) => keys.includes(row.key));
   };
 
+  /** One failed source is reported in place; the rest of the dashboard still renders. */
+  const failure = (widget: DashboardWidget): string | undefined =>
+    widgetSources(widget)
+      .map((source) => {
+        const message = run?.results[source]?.error;
+        return message
+          ? `${DASHBOARD_VIEW_COPY.sourceFailed(source)}: ${message}`
+          : undefined;
+      })
+      .find(Boolean);
+
+  const renderWidget = (widget: DashboardWidget) => {
+    switch (widget.type) {
+      case WIDGET_TYPES.table:
+        return (
+          <DashboardTable
+            widget={widget}
+            rows={rowsByTable[widget.id] ?? []}
+            selected={widget.selectable ? (selection[widget.id] ?? []) : undefined}
+            onToggle={widget.selectable ? (key) => toggle(widget.id, key) : undefined}
+            onClear={() => clear(widget.id)}
+            isFetching={isFetching}
+          />
+        );
+
+      case WIDGET_TYPES.compare: {
+        const table = tables.find((candidate) => candidate.id === widget.from);
+        return table ? (
+          <ComparePanel widget={widget} table={table} rows={selectedRows(table)} />
+        ) : null;
+      }
+
+      case WIDGET_TYPES.versus:
+        return (
+          <VersusPanel
+            widget={widget}
+            rows={widgetRows(
+              run,
+              widget.source,
+              widget.rowsPath ?? DEFAULT_VERSUS_ROWS_PATH,
+            )}
+          />
+        );
+
+      case WIDGET_TYPES.line:
+      case WIDGET_TYPES.bar:
+        return <WidgetChart widget={widget} run={run} />;
+
+      case WIDGET_TYPES.stats: {
+        const data = run?.results[widget.source]?.data;
+        return (
+          <StatTiles
+            widget={widget}
+            data={widget.path ? getPath(data, widget.path) : data}
+          />
+        );
+      }
+
+      case WIDGET_TYPES.meter:
+        return (
+          <MeterList
+            widget={widget}
+            rows={widgetRows(run, widget.source, widget.rowsPath)}
+          />
+        );
+
+      case WIDGET_TYPES.badges:
+        return (
+          <BadgeList
+            widget={widget}
+            rows={widgetRows(run, widget.source, widget.rowsPath)}
+          />
+        );
+    }
+  };
+
   return (
     <Shell>
       {spec.description && <Description>{spec.description}</Description>}
@@ -62,9 +155,7 @@ export const DashboardView = ({ spec, actions }: DashboardViewProps) => {
         </Button>
         {run && (
           <Updated>
-            {DASHBOARD_VIEW_COPY.updated(
-              new Date(run.ranAt).toLocaleTimeString(),
-            )}
+            {DASHBOARD_VIEW_COPY.updated(new Date(run.ranAt).toLocaleTimeString())}
           </Updated>
         )}
         {actions}
@@ -74,48 +165,21 @@ export const DashboardView = ({ spec, actions }: DashboardViewProps) => {
         <StatusMessage variant={STATUS_VARIANTS.error}>{error}</StatusMessage>
       )}
 
-      {spec.widgets.map((widget) => {
-        if (widget.type === WIDGET_TYPES.table) {
-          const failure = run?.results[widget.source]?.error;
+      <Grid>
+        {spec.widgets.map((widget) => {
+          const failed = failure(widget);
           return (
-            <Widget key={widget.id}>
+            <Widget key={widget.id} $width={widget.width}>
               <WidgetTitle>{widget.title}</WidgetTitle>
-              {failure ? (
-                <StatusMessage variant={STATUS_VARIANTS.error}>
-                  {`${DASHBOARD_VIEW_COPY.sourceFailed(widget.source)}: ${failure}`}
-                </StatusMessage>
+              {failed ? (
+                <StatusMessage variant={STATUS_VARIANTS.error}>{failed}</StatusMessage>
               ) : (
-                <DashboardTable
-                  widget={widget}
-                  rows={rowsByTable[widget.id] ?? []}
-                  selected={widget.selectable ? (selection[widget.id] ?? []) : undefined}
-                  onToggle={
-                    widget.selectable
-                      ? (key) => toggle(widget.id, key)
-                      : undefined
-                  }
-                  onClear={() => clear(widget.id)}
-                  isFetching={isFetching}
-                />
+                renderWidget(widget)
               )}
             </Widget>
           );
-        }
-
-        const table = tables.find((candidate) => candidate.id === widget.from);
-        if (!table) return null;
-
-        return (
-          <Widget key={widget.id}>
-            <WidgetTitle>{widget.title}</WidgetTitle>
-            <ComparePanel
-              widget={widget}
-              table={table}
-              rows={selectedRows(table)}
-            />
-          </Widget>
-        );
-      })}
+        })}
+      </Grid>
     </Shell>
   );
 };

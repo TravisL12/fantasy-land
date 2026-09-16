@@ -1,4 +1,5 @@
 import type { DashboardRun, DashboardSpec } from '@/api/dashboards';
+import type { theme } from '@/styles';
 
 export interface DashboardViewProps {
   spec: DashboardSpec;
@@ -24,3 +25,6 @@ export interface DashboardRunState {
   error?: string;
   refresh: () => void;
 }
+
+/** The reserved state colors a chip or meter may wear. */
+export type StatusTone = keyof typeof theme.colors.status;
