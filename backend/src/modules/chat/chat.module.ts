@@ -9,5 +9,6 @@ import { OllamaClient } from './ollama.client.js';
   imports: [SportsModule, ToolsModule],
   controllers: [ChatController],
   providers: [ChatService, OllamaClient],
+  exports: [ChatService],
 })
 export class ChatModule {}

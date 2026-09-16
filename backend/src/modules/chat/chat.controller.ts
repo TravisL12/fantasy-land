@@ -8,6 +8,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { openSseStream, writeSseEvent } from '../../common/http/sse.js';
 import {
   CHAT_MESSAGES,
   CHAT_ROLES,
@@ -15,16 +16,8 @@ import {
   CHAT_ROUTES,
 } from './chat.constants.js';
 import { ChatService } from './chat.service.js';
-import type { ChatStatus, ChatStreamEvent } from './chat.types.js';
+import type { ChatStatus } from './chat.types.js';
 import { ChatRequestDto } from './dto/chat-request.dto.js';
-
-const SSE_HEADERS = {
-  'Content-Type': 'text/event-stream',
-  'Cache-Control': 'no-cache, no-transform',
-  Connection: 'keep-alive',
-  // Stops nginx-style proxies from buffering the stream into one response.
-  'X-Accel-Buffering': 'no',
-} as const;
 
 @Controller(CHAT_ROUTE)
 export class ChatController {
@@ -47,19 +40,15 @@ export class ChatController {
 
     const controller = new AbortController();
     req.on('close', () => controller.abort());
-    res.writeHead(200, SSE_HEADERS).flushHeaders();
+    openSseStream(res);
 
     for await (const event of this.chatService.run(
       messages,
       controller.signal,
     )) {
       if (controller.signal.aborted) break;
-      write(res, event);
+      writeSseEvent(res, event);
     }
     res.end();
   }
 }
-
-const write = (res: Response, event: ChatStreamEvent) => {
-  res.write(`data: ${JSON.stringify(event)}\n\n`);
-};

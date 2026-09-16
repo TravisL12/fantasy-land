@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
+import { streamChat } from '@/api/chat';
+import { ChatComposer } from '@/components/ChatComposer';
+import { MessageBubble } from '@/components/MessageBubble';
 import { PageHeader } from '@/components/PageHeader';
+import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
+import { useChatStream } from '@/hooks';
 import { CHAT_COPY, SUGGESTIONS } from './ChatPage.constants';
-import { useChat } from './ChatPage.hooks';
 import {
   Conversation,
   Fixed,
@@ -10,12 +13,10 @@ import {
   Suggestion,
   Suggestions,
 } from './ChatPage.styles';
-import { ChatComposer } from './components/ChatComposer';
 import { ChatStatusBar } from './components/ChatStatusBar';
-import { MessageBubble } from './components/MessageBubble';
 
 export const ChatPage = () => {
-  const { turns, isStreaming, error, send, stop } = useChat();
+  const { turns, isStreaming, error, send, stop } = useChatStream(streamChat);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,7 +54,12 @@ export const ChatPage = () => {
         {error && (
           <StatusMessage variant={STATUS_VARIANTS.error}>{error}</StatusMessage>
         )}
-        <ChatComposer isStreaming={isStreaming} onSend={send} onStop={stop} />
+        <ChatComposer
+          isStreaming={isStreaming}
+          onSend={send}
+          onStop={stop}
+          placeholder={CHAT_COPY.placeholder}
+        />
       </Fixed>
     </Shell>
   );

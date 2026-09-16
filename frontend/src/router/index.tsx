@@ -2,6 +2,8 @@ import { createBrowserRouter } from 'react-router';
 import { Layout } from '@/components/Layout';
 import { RequireAuth } from '@/components/RequireAuth';
 import { RequireGuest } from '@/components/RequireGuest';
+import { DashboardPage } from '@/pages/DashboardPage';
+import { DashboardsPage } from '@/pages/DashboardsPage';
 import { HomePage } from '@/pages/HomePage';
 import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
@@ -26,6 +28,16 @@ export const router = createBrowserRouter([
               Component: (await import('@/pages/ChatPage')).ChatPage,
             }),
           },
+          { path: ROUTES.dashboards, element: <DashboardsPage /> },
+          {
+            path: ROUTES.dashboardCreate,
+            // Split out with the chat: only the builder needs the markdown renderer.
+            lazy: async () => ({
+              Component: (await import('@/pages/DashboardCreatePage'))
+                .DashboardCreatePage,
+            }),
+          },
+          { path: ROUTES.dashboard, element: <DashboardPage /> },
           { path: ROUTES.sports, element: <SportsPage /> },
           { path: ROUTES.sportStats, element: <SportStatsPage /> },
           { path: ROUTES.playerStats, element: <PlayerStatsPage /> },

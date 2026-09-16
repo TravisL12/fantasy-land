@@ -127,7 +127,28 @@ browser (SSE) ← chat.controller ← ChatService loop → OllamaClient → Olla
 - **Prompting**: `SYSTEM_PROMPT` in `chat.constants.ts` spells out all three tool families and Sleeper's id lookup chain (username → user_id → league_id), because small models otherwise invent league ids. It also tells the model to pass `sport` explicitly every time and to pass on the confirmed/projected distinction for pitcher starts. `SEASON_CONTEXT` is appended per request with the season (and week, where the sport has one) resolved from **every** catalog: telling the model the year is the only reliable fix for "last season" — instructing it to look the year up does not work at this size. Tune prompts there, not inline.
 - **No baseball league connection.** Sleeper covers NFL only, and there is no Yahoo integration, so for baseball the model is told to ask which players are on the user's roster rather than trying to look it up.
 - **Publishing our tools** (`modules/mcp-server/`): `POST /api/mcp` serves `ToolRegistry.listLocalTools()` over MCP's Streamable HTTP transport, so Claude Code, Claude Desktop and other agents share this backend's cache and scoring. Note the direction of the two modules: `mcp/` is the **client** we consume third-party servers with, `mcp-server/` is the **server** we expose. It publishes local tools only, via `callLocalTool` — we don't proxy someone else's MCP server. **Stateless** (`sessionIdGenerator: undefined`): a fresh `Server` and transport per request, torn down on response close, so there is no session store and `GET`/`DELETE` are 405. Auth is a bearer token (`MCP_HTTP_TOKEN`) checked in constant time by `McpTokenGuard`, not the session cookie — the callers are agents, not browsers — and the endpoint returns 503 until a token is set. A tool that throws still returns `isError` content rather than a JSON-RPC error, so clients see the reason.
-- **Frontend**: `api/chat/chat.stream.ts` is a plain `fetch` generator — RTK Query can't model a stream, so only `/chat/status` goes through `baseApi`. `ChatPage.hooks.ts` folds events into turns; tool calls render as expandable rows so you can see what the model actually fetched.
+- **Frontend**: `api/streamSse.ts` is a plain `fetch` generator — RTK Query can't model a stream, so only `/chat/status` goes through `baseApi`. `ChatPage.hooks.ts` folds events into turns; tool calls render as expandable rows so you can see what the model actually fetched.
+
+## Dashboards (generated UI)
+
+`/dashboards` is a chat that builds interactive views instead of answering in prose:
+
+```
+browser → /api/dashboards/build (SSE) → ChatService.run(options) → model
+                                              ↓ build_dashboard tool
+                                        DashboardSpec  ──saved as jsonb──→ dashboards table
+                                              ↓
+browser ← /api/dashboards/run ← DashboardsService → ToolRegistry.callLocalToolData → SportsService
+```
+
+- **A dashboard is a spec, never a snapshot.** `DashboardSpec` = `sources` (tool calls) + `widgets`. Opening or refreshing one re-runs its sources, so a saved dashboard is a live view. Nothing but the spec is stored.
+- **Building** (`dashboard-builder.service.ts`) reuses the chat loop: `ChatService.run(history, signal, { systemPrompt, extraTools })`. The builder passes `BUILDER_SYSTEM_PROMPT` and one request-scoped tool, `BuildDashboardTool`, which fetches nothing — it validates the model's design and captures it, and the spec goes out as a `dashboard_spec` SSE event alongside the normal chat events. The prompt makes the model **call the data tool first and read the real field names**; designing blind produces columns that render empty.
+- **Validation** (`dashboards.utils.ts` `parseSpec`) is deliberately chatty: every failure names the exact widget, column or id that is wrong, because a `BadRequestException` comes back to the model as a tool error and it fixes it on the next round. It also absorbs small-model quirks (a nested object sent as a JSON string, a missing column `path`).
+- **Running**: `callLocalToolData` is `callLocalTool` without truncation — a dashboard renders the result rather than feeding it to a context window. Sources run in parallel and failures are per source, so one dead upstream leaves the rest usable.
+- **Widgets** are a closed set, rendered by `components/DashboardView/`. `table` is a sortable `DataTable` with optional row ticking; `compare` is the transpose of a table, showing the ticked rows side by side. Columns address data by **dot path** (`stats.homeRuns`) and are formatted with `formatCell`, so the renderer never knows anything sport-specific. **To add a widget kind: add it to `WIDGET_TYPES`, parse it in `parseSpec`, describe it in `BUILDER_SYSTEM_PROMPT`, and render it in `DashboardView`.**
+- Sorting, ticking and comparing all happen in the browser. The API is hit only on open and on Refresh.
+- `get_leaderboard` rejects a `sort` key its group does not define. It used to fall back to alphabetical order, which reads as a real ranking and quietly made every generated "top N" dashboard wrong.
+- The chat pieces are shared, not duplicated: `useChatStream` (any SSE endpoint, plus an `onEvent` hook for extra event types), `ChatComposer` and `MessageBubble` live in `components/`, and `streamSse` is the one SSE reader.
 
 ## Hygiene
 

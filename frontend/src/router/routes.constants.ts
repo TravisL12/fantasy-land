@@ -5,6 +5,9 @@ export const ROUTES = {
   login: '/login',
   register: '/register',
   chat: '/chat',
+  dashboards: '/dashboards',
+  dashboardCreate: '/dashboards/create',
+  dashboard: '/dashboards/:dashboardId',
   sports: '/sports',
   sportStats: '/sports/:sport',
   playerStats: '/sports/:sport/players/:playerId',
@@ -30,3 +33,6 @@ export const buildPlayerStatsPath = (
   playerId: string,
   search?: Record<string, string | undefined>,
 ) => withSearch(generatePath(ROUTES.playerStats, { sport, playerId }), search);
+
+export const buildDashboardPath = (dashboardId: string) =>
+  generatePath(ROUTES.dashboard, { dashboardId });

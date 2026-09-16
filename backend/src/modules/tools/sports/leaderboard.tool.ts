@@ -1,7 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { StatsQueryDto } from '../../sports/dto/stats-query.dto.js';
 import { SportsService } from '../../sports/sports.service.js';
-import { SORT_ORDERS } from '../../sports/sports.constants.js';
+import {
+  COMPUTED_SORT_KEYS,
+  SORT_ORDERS,
+} from '../../sports/sports.constants.js';
+import type { SportCatalog } from '../../sports/sports.types.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
 import type { FantasyTool, ToolDefinition } from '../tools.types.js';
 import { asNumber, asSport, asString, clamp } from '../tools.utils.js';
@@ -9,6 +13,7 @@ import {
   LEADERBOARD_LIMIT,
   SCORING_PARAM,
   SEASON_PARAM,
+  SPORTS_TOOL_MESSAGES,
   SPORT_PARAM,
 } from './sports-tools.constants.js';
 
@@ -65,15 +70,23 @@ export class LeaderboardTool implements FantasyTool {
 
   async execute(args: Record<string, unknown>) {
     const sport = asSport(args.sport);
+    const group = asString(args.group);
+    const sort = asString(args.sort);
+    if (sort) {
+      // Sorting by a key the group does not define quietly falls back to
+      // alphabetical order, which looks like a real ranking. Say so instead.
+      assertSortable(await this.sports.getCatalog(sport), group, sort);
+    }
+
     const result = await this.sports.getStats(
       sport,
       Object.assign(new StatsQueryDto(), {
         season: asString(args.season),
         week: asNumber(args.week),
-        group: asString(args.group),
+        group,
         position: asString(args.position),
         scoring: asString(args.scoring),
-        sort: asString(args.sort),
+        sort,
         order: asString(args.order) ?? SORT_ORDERS.desc,
         minGames: asNumber(args.minGames) ?? 0,
         limit: clamp(
@@ -98,3 +111,21 @@ export class LeaderboardTool implements FantasyTool {
     };
   }
 }
+
+const assertSortable = (
+  catalog: SportCatalog,
+  groupKey: string | undefined,
+  sort: string,
+) => {
+  const group =
+    catalog.groups.find(({ key }) => key === groupKey) ?? catalog.groups[0];
+  if (!group) return;
+
+  const computed = Object.values(COMPUTED_SORT_KEYS);
+  const stats = group.stats.map(({ key }) => key);
+  if ([...computed, ...stats].includes(sort)) return;
+
+  throw new BadRequestException(
+    SPORTS_TOOL_MESSAGES.unknownSort(sort, group.key, [...computed, ...stats]),
+  );
+};

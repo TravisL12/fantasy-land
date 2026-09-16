@@ -1,4 +1,5 @@
-import { HttpException, Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { toErrorMessage } from '../../common/errors/error-message.js';
 import { serializeToolResult } from '../../common/text/truncate.js';
 import { McpService } from '../mcp/mcp.service.js';
 import { FANTASY_TOOLS, TOOL_MESSAGES } from './tools.constants.js';
@@ -62,6 +63,27 @@ export class ToolRegistry {
       : { text: TOOL_MESSAGES.unknownTool(name), isError: true };
   }
 
+  /**
+   * Like callLocalTool, but hands back the tool's own data with no truncation
+   * and no serialization: a dashboard renders the result rather than feeding it
+   * to a context window, so the row caps would only lose data.
+   */
+  async callLocalToolData(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<{ data?: unknown; error?: string }> {
+    const tool = this.local.get(name);
+    if (!tool) return { error: TOOL_MESSAGES.unknownTool(name) };
+
+    try {
+      return { data: await tool.execute(args) };
+    } catch (error) {
+      const message = toErrorMessage(error);
+      this.logger.warn(`Tool "${name}" failed: ${message}`);
+      return { error: message };
+    }
+  }
+
   private async run(
     name: string,
     tool: FantasyTool,
@@ -73,24 +95,9 @@ export class ToolRegistry {
         isError: false,
       };
     } catch (error) {
-      this.logger.warn(`Tool "${name}" failed: ${messageOf(error)}`);
-      return { text: messageOf(error), isError: true };
+      const message = toErrorMessage(error);
+      this.logger.warn(`Tool "${name}" failed: ${message}`);
+      return { text: message, isError: true };
     }
   }
 }
-
-/**
- * Nest's HTTP exceptions carry the useful detail in their response body —
- * "Unknown stat group" is worth telling the model so it can correct itself.
- */
-const messageOf = (error: unknown): string => {
-  if (error instanceof HttpException) {
-    const response = error.getResponse();
-    const message =
-      typeof response === 'object' && response !== null
-        ? (response as { message?: string | string[] }).message
-        : response;
-    return String(Array.isArray(message) ? message.join('; ') : (message ?? error.message));
-  }
-  return error instanceof Error ? error.message : String(error);
-};

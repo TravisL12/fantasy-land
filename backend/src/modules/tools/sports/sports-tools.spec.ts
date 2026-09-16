@@ -58,7 +58,11 @@ const playerStatsResponse: PlayerStatsResponseDto = {
   },
 };
 
-const sportsStub = (groups = [{ key: 'offense' }]) =>
+const sportsStub = (
+  groups: { key: string; stats?: { key: string }[] }[] = [
+    { key: 'offense', stats: [{ key: 'rec' }, { key: 'rec_yd' }] },
+  ],
+) =>
   ({
     getStats: vi.fn().mockResolvedValue(statsResponse),
     getPlayerStats: vi.fn().mockResolvedValue(playerStatsResponse),
@@ -192,6 +196,25 @@ describe('sports tools', () => {
         'nfl',
         expect.objectContaining({ limit: LEADERBOARD_LIMIT.max }),
       );
+    });
+
+    it('rejects a sort key the group does not define', async () => {
+      const sports = sportsStub();
+
+      // A bad key would otherwise sort alphabetically and look like a ranking.
+      await expect(
+        new LeaderboardTool(sports).execute({ sort: 'stats.rec' }),
+      ).rejects.toThrow(/Cannot sort by "stats.rec"/);
+      expect(vi.mocked(sports.getStats)).not.toHaveBeenCalled();
+    });
+
+    it('accepts a stat key and a computed key', async () => {
+      const sports = sportsStub();
+
+      await new LeaderboardTool(sports).execute({ sort: 'rec_yd' });
+      await new LeaderboardTool(sports).execute({ sort: 'fantasyPointsPerGame' });
+
+      expect(vi.mocked(sports.getStats)).toHaveBeenCalledTimes(2);
     });
 
     it('passes filters through and flattens the rows', async () => {

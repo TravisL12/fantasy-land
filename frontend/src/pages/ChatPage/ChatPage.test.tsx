@@ -1,4 +1,5 @@
 import { fireEvent, screen } from '@testing-library/react';
+import { COMPOSER_COPY } from '@/components/ChatComposer';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { ChatPage } from './ChatPage';
 import { CHAT_COPY } from './ChatPage.constants';
@@ -49,7 +50,7 @@ const ask = (question: string) => {
   fireEvent.change(screen.getByLabelText(CHAT_COPY.placeholder), {
     target: { value: question },
   });
-  fireEvent.click(screen.getByRole('button', { name: CHAT_COPY.send }));
+  fireEvent.click(screen.getByRole('button', { name: COMPOSER_COPY.send }));
 };
 
 describe('ChatPage', () => {

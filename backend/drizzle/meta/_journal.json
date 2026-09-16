@@ -15,6 +15,13 @@
       "when": 1789434329854,
       "tag": "0001_data_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789596541088,
+      "tag": "0002_dashboards",
+      "breakpoints": true
     }
   ]
 }

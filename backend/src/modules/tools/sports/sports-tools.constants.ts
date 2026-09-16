@@ -33,4 +33,6 @@ export const SPORTS_TOOL_MESSAGES = {
   noMatches: (query: string) => `No players matched "${query}"`,
   tooManyPlayers: `Compare at most ${COMPARE_MAX_PLAYERS} players at once`,
   needTwoPlayers: 'Give at least two player ids to compare',
+  unknownSort: (sort: string, group: string, keys: string[]) =>
+    `Cannot sort by "${sort}" — the "${group}" group has no such stat. Sort by one of: ${keys.join(', ')}.`,
 } as const;

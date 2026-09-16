@@ -9,6 +9,7 @@ import { mcpConfig } from './config/mcp.config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { ChatModule } from './modules/chat/chat.module.js';
+import { DashboardsModule } from './modules/dashboards/dashboards.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { McpServerModule } from './modules/mcp-server/mcp-server.module.js';
 import { SportsModule } from './modules/sports/sports.module.js';
@@ -29,6 +30,7 @@ import { SportsModule } from './modules/sports/sports.module.js';
     DatabaseModule,
     AuthModule,
     ChatModule,
+    DashboardsModule,
     HealthModule,
     McpServerModule,
     SportsModule,

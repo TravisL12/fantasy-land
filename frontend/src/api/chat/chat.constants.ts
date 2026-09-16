@@ -14,5 +14,3 @@ export const CHAT_EVENTS = {
   done: 'done',
   error: 'error',
 } as const;
-
-export const SSE_DATA_PREFIX = 'data: ';

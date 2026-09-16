@@ -1,3 +1,4 @@
+import type { FantasyTool } from '../tools/tools.types.js';
 import type { CHAT_EVENTS, CHAT_ROLES } from './chat.constants.js';
 
 type ValueOf<T> = T[keyof T];
@@ -31,6 +32,13 @@ export type ChatStreamEvent =
     }
   | { type: typeof CHAT_EVENTS.done }
   | { type: typeof CHAT_EVENTS.error; message: string };
+
+/** How another feature reuses the chat loop — see ChatService.run. */
+export interface ChatRunOptions {
+  systemPrompt?: string;
+  /** Request-scoped tools, offered alongside the registry's and winning a clash. */
+  extraTools?: FantasyTool[];
+}
 
 export interface ChatStatus {
   model: string;
