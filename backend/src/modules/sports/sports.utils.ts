@@ -30,6 +30,26 @@ const parseDate = (value: string) => {
   return value;
 };
 
+/** Validates an optional date, so a bad one is rejected before it is sent upstream. */
+export const assertIsoDate = (value: string | undefined) =>
+  value === undefined ? undefined : parseDate(value);
+
+/**
+ * Validates an open-ended window. Unlike a slate, a head-to-head or a game-log
+ * slice is small however long the interval is, so there is no length cap here.
+ */
+export const assertRange = (
+  startDate: string | undefined,
+  endDate: string | undefined,
+) => {
+  const start = assertIsoDate(startDate);
+  const end = assertIsoDate(endDate);
+  if (start && end && daysBetween(start, end) < 0) {
+    throw new BadRequestException(SPORTS_MESSAGES.endBeforeStart);
+  }
+  return { startDate: start, endDate: end };
+};
+
 /**
  * Validates a date window and caps its length — an uncapped range would pull
  * hundreds of games into the model's context.

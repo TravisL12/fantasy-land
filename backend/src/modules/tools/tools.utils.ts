@@ -15,6 +15,14 @@ export const asNumber = (value: unknown): number | undefined => {
 export const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.map(String) : value ? [String(value)] : [];
 
+/** Same coercion as asStringArray, dropping anything that is not a number. */
+export const asNumberArray = (value: unknown): number[] | undefined => {
+  const values = asStringArray(value)
+    .map(asNumber)
+    .filter((entry): entry is number => entry !== undefined);
+  return values.length ? values : undefined;
+};
+
 /**
  * Small models fill a required argument with the word for "missing" rather than
  * asking the user — `"undefined"`, `"null"`, or the placeholder straight out of

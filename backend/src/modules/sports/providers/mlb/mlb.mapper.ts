@@ -14,6 +14,7 @@ import type {
 import { pickStats, toNumber } from '../provider.utils.js';
 import {
   MLB_DERIVED_STATS,
+  MLB_FINAL_STATE,
   MLB_GROUP_KEYS,
   MLB_PITCHER_POSITION_TYPE,
   MLB_PITCHER_ROLES,
@@ -64,6 +65,12 @@ export const mapStats = (raw: MlbRawStats, group: StatGroup): StatValues => {
 
 const teamAbbr = (team: MlbRef | undefined, teams: TeamAbbreviations) =>
   team ? (teams[team.id] ?? team.name ?? null) : null;
+
+/** Abbreviation back to the upstream id, for endpoints that filter by team. */
+export const teamId = (teams: TeamAbbreviations, abbreviation: string) =>
+  Object.entries(teams).find(
+    ([, abbr]) => abbr.toUpperCase() === abbreviation.toUpperCase(),
+  )?.[0];
 
 /** The API only says "P"; split pitchers into starters and relievers by usage. */
 export const pitchingRole = (raw: MlbRawStats | StatValues) => {
@@ -145,6 +152,13 @@ export const mapSchedule = (
         };
       };
 
+      // A live game already carries a running score; only a final one is a result.
+      const isFinal =
+        (game.status.abstractGameState ?? game.status.detailedState) ===
+        MLB_FINAL_STATE;
+      const homeScore = isFinal ? toNumber(game.teams.home.score) : undefined;
+      const awayScore = isFinal ? toNumber(game.teams.away.score) : undefined;
+
       return [
         {
           gameId: String(game.gamePk),
@@ -153,6 +167,10 @@ export const mapSchedule = (
           home,
           away,
           probables: { home: starter('home'), away: starter('away') },
+          score:
+            homeScore !== undefined && awayScore !== undefined
+              ? { home: homeScore, away: awayScore }
+              : null,
         },
       ];
     }),

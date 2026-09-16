@@ -7,8 +7,10 @@ import { CACHE_TTL } from '../../../data-cache/data-cache.constants.js';
 import { DataCacheService } from '../../../data-cache/data-cache.service.js';
 import { SPORT_KEYS, SPORTS_CACHE_VERSION } from '../../sports.constants.js';
 import type {
+  DateRange,
   GameLog,
   GameLogQuery,
+  HeadToHeadQuery,
   LeagueDataProvider,
   MatchupMetric,
   MatchupSide,
@@ -23,12 +25,14 @@ import { findGroup, seasonRange } from '../provider.utils.js';
 import {
   MLB_API,
   MLB_CATALOG_BASE,
+  MLB_GAME_TYPE,
   MLB_FIRST_SEASON,
   MLB_GROUP_KEYS,
   MLB_GROUPS,
   MLB_MATCHUP_METRICS,
   MLB_ROSTER_TYPE,
   MLB_SPORT_ID,
+  MLB_STATS_TYPES,
   MLB_STATS_PAGE_SIZE,
 } from './mlb.constants.js';
 import {
@@ -39,6 +43,7 @@ import {
   mapSeasonSplits,
   mapTeamStrength,
   pitchingRole,
+  teamId,
   type TeamAbbreviations,
   toPlayerRef,
 } from './mlb.mapper.js';
@@ -158,16 +163,57 @@ export class MlbProvider implements LeagueDataProvider {
     );
   }
 
-  async getTeamStrength(season: string): Promise<TeamStrength[]> {
+  /**
+   * Only the games these two played each other, straight from upstream — the
+   * whole-season schedule would be 2,400 games to filter down to about a dozen.
+   */
+  async getHeadToHead({
+    season,
+    teams,
+    startDate,
+    endDate,
+  }: HeadToHeadQuery): Promise<ScheduledGame[]> {
+    const ttl = await this.ttlForSeason(season);
+    const [home, away] = teams;
+
+    return this.cache.wrap(
+      cacheKey('headToHead', season, home, away, startDate ?? '', endDate ?? ''),
+      ttl,
+      async () => {
+        const abbreviations = await this.getTeams(season);
+        const ids = teams.map((team) => teamId(abbreviations, team));
+        if (ids.some((id) => id === undefined)) return [];
+
+        const response = await fetchJson<MlbScheduleResponse>(
+          `${MLB_API}/schedule?sportId=${MLB_SPORT_ID}&season=${season}` +
+            `&gameType=${MLB_GAME_TYPE}&teamId=${ids[0]}&opponentId=${ids[1]}` +
+            (startDate && endDate
+              ? `&startDate=${startDate}&endDate=${endDate}`
+              : ''),
+        );
+        return mapSchedule(response.dates, abbreviations);
+      },
+    );
+  }
+
+  async getTeamStrength(
+    season: string,
+    range?: DateRange,
+  ): Promise<TeamStrength[]> {
     const ttl = await this.ttlForSeason(season);
 
     return this.cache.wrap(
-      cacheKey('teamStrength', season),
+      cacheKey(
+        'teamStrength',
+        season,
+        range?.startDate ?? '',
+        range?.endDate ?? '',
+      ),
       ttl,
       async () => {
         const [hitting, pitching, teams] = await Promise.all([
-          this.fetchTeamStats(season, MLB_GROUP_KEYS.hitting),
-          this.fetchTeamStats(season, MLB_GROUP_KEYS.pitching),
+          this.fetchTeamStats(season, MLB_GROUP_KEYS.hitting, range),
+          this.fetchTeamStats(season, MLB_GROUP_KEYS.pitching, range),
           this.getTeams(season),
         ]);
         return mapTeamStrength(hitting, pitching, teams);
@@ -198,10 +244,18 @@ export class MlbProvider implements LeagueDataProvider {
     );
   }
 
-  private async fetchTeamStats(season: string, group: string) {
+  private async fetchTeamStats(
+    season: string,
+    group: string,
+    range?: DateRange,
+  ) {
+    const type = range ? MLB_STATS_TYPES.byDateRange : MLB_STATS_TYPES.season;
     const { stats } = await fetchJson<MlbStatsResponse<MlbTeamStatSplit>>(
-      `${MLB_API}/teams/stats?stats=season&group=${group}` +
-        `&season=${season}&sportId=${MLB_SPORT_ID}`,
+      `${MLB_API}/teams/stats?stats=${type}&group=${group}` +
+        `&season=${season}&sportId=${MLB_SPORT_ID}` +
+        (range
+          ? `&startDate=${range.startDate}&endDate=${range.endDate}`
+          : ''),
     );
     return stats[0]?.splits ?? [];
   }

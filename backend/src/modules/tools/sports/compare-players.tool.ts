@@ -1,8 +1,17 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { WINDOW_DEFAULTS } from '../../sports/sports.constants.js';
 import { SportsService } from '../../sports/sports.service.js';
+import type { GameWindow } from '../../sports/sports.types.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
 import type { FantasyTool, ToolDefinition } from '../tools.types.js';
-import { asSport, asString, asStringArray } from '../tools.utils.js';
+import {
+  asNumber,
+  asNumberArray,
+  asSport,
+  asString,
+  asStringArray,
+  clamp,
+} from '../tools.utils.js';
 import {
   COMPARE_MAX_PLAYERS,
   PLAYER_ID_PARAM,
@@ -10,16 +19,20 @@ import {
   SEASON_PARAM,
   SPORTS_TOOL_MESSAGES,
   SPORT_PARAM,
+  WINDOW_PARAMS,
 } from './sports-tools.constants.js';
 
-/** Side-by-side on identical scoring, so the numbers are actually comparable. */
+/**
+ * Side by side on identical scoring, over the whole season or any slice of it,
+ * plus a head-to-head over the games they all played.
+ */
 @Injectable()
 export class ComparePlayersTool implements FantasyTool {
   readonly definition: ToolDefinition = {
     name: 'compare_players',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Compare players head-to-head on the same scoring: season points, points per game, floor, ceiling and volatility. Use this for start/sit and trade questions.',
+      'Compare players head-to-head on the same scoring: points, points per game, floor, ceiling and volatility, plus who outscored whom in the games they both played. Covers a whole season by default, or any interval — pass startDate/endDate for a stretch of the calendar, weeks for NFL weeks, or lastN for the most recent games. Use this for start/sit, trade and "who has been better since X" questions.',
     parameters: {
       type: 'object',
       properties: {
@@ -31,6 +44,7 @@ export class ComparePlayersTool implements FantasyTool {
         },
         season: SEASON_PARAM,
         scoring: SCORING_PARAM,
+        ...WINDOW_PARAMS,
       },
       required: ['playerIds'],
     },
@@ -47,41 +61,20 @@ export class ComparePlayersTool implements FantasyTool {
       throw new BadRequestException(SPORTS_TOOL_MESSAGES.tooManyPlayers);
     }
 
-    const sport = asSport(args.sport);
-    const query = {
+    const lastN = asNumber(args.lastN);
+    const window: GameWindow = {
+      startDate: asString(args.startDate),
+      endDate: asString(args.endDate),
+      weeks: asNumberArray(args.weeks),
+      lastN: lastN
+        ? clamp(lastN, WINDOW_DEFAULTS.minLastN, WINDOW_DEFAULTS.maxLastN)
+        : undefined,
+    };
+
+    return this.sports.comparePlayers(asSport(args.sport), playerIds, {
       season: asString(args.season),
       scoring: asString(args.scoring),
-    };
-
-    const players = await Promise.all(
-      playerIds.map(async (playerId) => {
-        const { player, totals, summary, group } =
-          await this.sports.getPlayerStats(sport, playerId, query);
-        return {
-          ...player,
-          group,
-          games: summary.games,
-          fantasyPoints: summary.total,
-          pointsPerGame: summary.average,
-          median: summary.median,
-          floor: summary.floor,
-          ceiling: summary.ceiling,
-          volatility: summary.stdDev,
-          totals,
-        };
-      }),
-    );
-
-    const [best] = [...players].sort(
-      (a, b) => b.pointsPerGame - a.pointsPerGame,
-    );
-
-    return {
-      sport,
-      season: query.season,
-      scoring: query.scoring,
-      players,
-      bestPointsPerGame: best.name,
-    };
+      window,
+    });
   }
 }

@@ -60,6 +60,17 @@ export const FORM_DEFAULTS = {
 
 export const SCHEDULE_DEFAULTS = { days: 7, maxDays: 21 } as const;
 
+/** Caps for a game-log window, which is filtered in memory rather than fetched. */
+export const WINDOW_DEFAULTS = {
+  minLastN: 1,
+  maxLastN: 60,
+  /** Shared games listed game by game; the counts always cover the whole window. */
+  maxHeadToHeadGames: 25,
+} as const;
+
+/** A head-to-head series is small, so it is not date-capped the way a slate is. */
+export const SERIES_DEFAULTS = { maxGames: 30 } as const;
+
 /**
  * Upstream only publishes probable starters a few days out, so anything past
  * that is projected from the player's own rest pattern and labelled as such.
@@ -140,6 +151,14 @@ export const SPORTS_MESSAGES = {
   noLeagueData: (sport: string) =>
     `No schedule, matchup or availability data for "${sport}" — this is only wired up for mlb so far`,
   badDate: (value: string) => `"${value}" is not a YYYY-MM-DD date`,
+  unknownTeam: (team: string, teams: string[]) =>
+    `Unknown team "${team}" — use one of: ${teams.join(', ')}`,
+  sameTeam: 'Give two different teams to compare',
+  noDatesInLog:
+    'This sport\'s game log has no dates, so the date window was ignored — filter by week instead.',
+  noGamesInWindow:
+    'No games fall inside that window — widen it or drop the filters.',
+  neverMet: 'These teams have no games against each other in that window.',
   endBeforeStart: 'endDate must not be before startDate',
   rangeTooLong: (max: number) => `Ask for at most ${max} days at a time`,
 } as const;

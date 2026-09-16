@@ -11,8 +11,10 @@ import type {
   StatsResponseDto,
 } from './dto/stats-response.dto.js';
 import { analyzeForm } from './analysis/form.js';
+import { playerHeadToHead, teamSeries } from './analysis/head-to-head.js';
 import { rateMatchups } from './analysis/matchup.js';
 import { projectStarts, restPattern } from './analysis/starts.js';
+import { datesUnusable, sliceGames } from './analysis/window.js';
 import {
   calculateFantasyPoints,
   perGame,
@@ -33,10 +35,14 @@ import {
   STARTS_DEFAULTS,
 } from './sports.constants.js';
 import type {
+  DateRange,
   FormReport,
+  GameWindow,
   MatchupRating,
   MatchupSide,
+  PlayerHeadToHead,
   PlayerRef,
+  PlayerSplit,
   ProbableStarter,
   ProjectedStart,
   ScheduledGame,
@@ -46,9 +52,14 @@ import type {
   SportKey,
   SportProvider,
   StartsReport,
+  TeamSeries,
   TeamStrength,
 } from './sports.types.js';
-import { providesLeagueData, resolveDateRange } from './sports.utils.js';
+import {
+  assertRange,
+  providesLeagueData,
+  resolveDateRange,
+} from './sports.utils.js';
 
 /** A date window, already validated by resolveDateRange. */
 export interface DateRangeQuery {
@@ -416,6 +427,174 @@ export class SportsService {
     };
   }
 
+  /**
+   * Players side by side over a season or any slice of one. The window is a
+   * filter on the game log, not a second fetch, so "since the break" or "last
+   * 10 games" costs nothing extra. Head-to-head counts only the games every
+   * player appeared in, since comparing raw averages rewards whoever played more.
+   */
+  async comparePlayers(
+    sport: SportKey,
+    playerIds: string[],
+    query: {
+      season?: string;
+      scoring?: string;
+      group?: string;
+      window?: GameWindow;
+    },
+  ) {
+    const window = query.window ?? {};
+    assertRange(window.startDate, window.endDate);
+    const catalog = await this.getCatalog(sport);
+
+    const compared = await Promise.all(
+      playerIds.map(async (playerId) => {
+        const stats = await this.getPlayerStats(sport, playerId, {
+          season: query.season,
+          group: query.group,
+          scoring: query.scoring,
+        } as PlayerStatsQueryDto);
+        const group = resolveGroup(catalog, stats.group);
+        const entries = sliceGames(stats.entries, window);
+
+        return {
+          season: stats.season,
+          scoring: stats.scoring,
+          datesIgnored: datesUnusable(stats.entries, window),
+          entries,
+          split: {
+            player: stats.player,
+            group: group.key,
+            summary: summarizePoints(
+              entries.map(({ fantasyPoints }) => fantasyPoints),
+            ),
+            totals: sumStats(
+              entries.map(({ stats: values }) => values),
+              group.stats,
+            ),
+          } satisfies PlayerSplit,
+        };
+      }),
+    );
+
+    const players = compared.map(({ split }) => ({
+      ...split.player,
+      group: split.group,
+      games: split.summary.games,
+      fantasyPoints: split.summary.total,
+      pointsPerGame: split.summary.average,
+      median: split.summary.median,
+      floor: split.summary.floor,
+      ceiling: split.summary.ceiling,
+      volatility: split.summary.stdDev,
+      totals: split.totals,
+    }));
+
+    const [best] = [...players].sort(
+      (a, b) => b.pointsPerGame - a.pointsPerGame,
+    );
+    const headToHead: PlayerHeadToHead = playerHeadToHead(
+      compared.map(({ split, entries }) => ({ player: split.player, entries })),
+    );
+
+    const notes = [
+      compared.some(({ datesIgnored }) => datesIgnored)
+        ? SPORTS_MESSAGES.noDatesInLog
+        : null,
+      players.every(({ games }) => games === 0)
+        ? SPORTS_MESSAGES.noGamesInWindow
+        : null,
+    ].filter((note) => note !== null);
+
+    return {
+      sport,
+      season: compared[0]?.season ?? catalog.defaultSeason,
+      scoring: compared[0]?.scoring ?? catalog.scoringPresets[0]?.key,
+      window,
+      players,
+      bestPointsPerGame: best?.name ?? null,
+      headToHead,
+      ...(notes.length && { notes }),
+    };
+  }
+
+  /**
+   * Two teams over a season or part of one: the games they played each other,
+   * and how each side produced across the same interval. Team stats are
+   * measured over the window too, so a "since August" comparison is not
+   * silently answered with season-to-date numbers.
+   */
+  async getTeamHeadToHead(
+    sport: SportKey,
+    query: {
+      teamA: string;
+      teamB: string;
+      season?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ): Promise<{
+    sport: SportKey;
+    season: string;
+    startDate: string | undefined;
+    endDate: string | undefined;
+    teams: unknown[];
+    series: TeamSeries;
+    note?: string;
+  }> {
+    const provider = this.leagueProvider(sport);
+    const season = query.season ?? (await provider.getCatalog()).defaultSeason;
+    const range = assertRange(query.startDate, query.endDate);
+    // Both ends are needed to measure an interval; one alone means the season.
+    const interval: DateRange | undefined =
+      range.startDate && range.endDate
+        ? { startDate: range.startDate, endDate: range.endDate }
+        : undefined;
+
+    const strengths = await provider.getTeamStrength(season, interval);
+    const known = strengths.map(({ team }) => team).sort();
+    const teams = [query.teamA, query.teamB].map((team) =>
+      resolveTeam(team, known),
+    ) as [string, string];
+    if (teams[0] === teams[1]) {
+      throw new BadRequestException(SPORTS_MESSAGES.sameTeam);
+    }
+
+    const ratings = Object.fromEntries(
+      Object.values(MATCHUP_SIDES).map((side) => [
+        side,
+        rateMatchups(strengths, provider.matchupMetrics[side]),
+      ]),
+    ) as Record<MatchupSide, Map<string, MatchupRating>>;
+
+    const games = await provider.getHeadToHead({ season, teams, ...range });
+    const series = teamSeries(games, teams);
+
+    return {
+      sport,
+      season,
+      ...range,
+      teams: teams.map((team) => {
+        const strength = strengths.find((entry) => entry.team === team);
+        return {
+          team,
+          gamesPlayed: strength?.gamesPlayed ?? 0,
+          hitting: strength?.hitting ?? {},
+          pitching: strength?.pitching ?? {},
+          /** How good a matchup this team is *to face*, on each side. */
+          asOpponent: Object.fromEntries(
+            Object.values(MATCHUP_SIDES).map((side) => [
+              side,
+              ratings[side].get(team) ?? null,
+            ]),
+          ),
+        };
+      }),
+      series,
+      ...(series.played === 0 && { note: SPORTS_MESSAGES.neverMet }),
+    };
+  }
+
   private async startsForPitcher({
     sport,
     season,
@@ -544,6 +723,17 @@ const resolveGroup = (catalog: SportCatalog, key?: string) => {
   if (!group)
     throw new BadRequestException(SPORTS_MESSAGES.unknownGroup(key ?? ''));
   return group;
+};
+
+/** Abbreviations are case-insensitive, and a wrong one lists the valid ones. */
+const resolveTeam = (team: string, known: string[]) => {
+  const match = known.find(
+    (candidate) => candidate.toUpperCase() === team.trim().toUpperCase(),
+  );
+  if (!match) {
+    throw new BadRequestException(SPORTS_MESSAGES.unknownTeam(team, known));
+  }
+  return match;
 };
 
 const resolveScoring = (catalog: SportCatalog, key?: string) => {

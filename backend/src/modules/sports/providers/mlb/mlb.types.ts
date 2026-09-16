@@ -59,12 +59,14 @@ export interface MlbProbablePitcher {
 export interface MlbScheduleTeam {
   team: MlbRef;
   probablePitcher?: MlbProbablePitcher;
+  /** Absent until the game has been played. */
+  score?: number;
 }
 
 export interface MlbScheduleGame {
   gamePk: number;
   officialDate: string;
-  status: { detailedState: string };
+  status: { detailedState: string; abstractGameState?: string };
   teams: { home: MlbScheduleTeam; away: MlbScheduleTeam };
 }
 

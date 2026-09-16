@@ -197,6 +197,18 @@ export const MLB_STATUS_KEYWORDS: { match: string; availability: Availability }[
  */
 export const MLB_ROSTER_TYPE = '40Man';
 
+/** `abstractGameState` once a game counts as a result. */
+export const MLB_FINAL_STATE = 'Final';
+
+/** Regular-season games only, so spring training never lands in a record. */
+export const MLB_GAME_TYPE = 'R';
+
+/** Team stats measured over a date range rather than the whole season. */
+export const MLB_STATS_TYPES = {
+  season: 'season',
+  byDateRange: 'byDateRange',
+} as const;
+
 /** Only statuses a fantasy manager can actually roster are worth listing by default. */
 export const MLB_RELEVANT_AVAILABILITY: Availability[] = [
   AVAILABILITY.injured,

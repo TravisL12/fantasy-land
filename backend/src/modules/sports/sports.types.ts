@@ -133,12 +133,25 @@ export interface ScheduledGame {
   home: string;
   away: string;
   probables: { home: ProbableStarter | null; away: ProbableStarter | null };
+  /** Runs/points once the game is final; null while it is still upcoming. */
+  score: { home: number; away: number } | null;
 }
 
-export interface ScheduleQuery {
-  season: string;
+export interface DateRange {
   startDate: string;
   endDate: string;
+}
+
+export interface ScheduleQuery extends DateRange {
+  season: string;
+}
+
+/** Every meeting between two teams, optionally narrowed to part of the season. */
+export interface HeadToHeadQuery {
+  season: string;
+  teams: [string, string];
+  startDate?: string;
+  endDate?: string;
 }
 
 /** Season-to-date team production, the input to matchup ratings. */
@@ -205,7 +218,9 @@ export interface PlayerStatus {
 export interface LeagueDataProvider extends SportProvider {
   readonly matchupMetrics: Record<MatchupSide, MatchupMetric[]>;
   getSchedule(query: ScheduleQuery): Promise<ScheduledGame[]>;
-  getTeamStrength(season: string): Promise<TeamStrength[]>;
+  getHeadToHead(query: HeadToHeadQuery): Promise<ScheduledGame[]>;
+  /** A date range measures the interval rather than the whole season to date. */
+  getTeamStrength(season: string, range?: DateRange): Promise<TeamStrength[]>;
   getPlayerStatuses(season: string): Promise<PlayerStatus[]>;
 }
 
@@ -238,4 +253,82 @@ export interface FormReport {
   delta: number;
   trend: FormTrend;
   recentTotals: StatValues;
+}
+
+/**
+ * A slice of a season. Dates work for any sport whose game logs carry them,
+ * weeks only for sports that have weeks, and `lastN` is applied after both,
+ * so "last 5 games in September" means exactly that.
+ */
+export interface GameWindow {
+  startDate?: string;
+  endDate?: string;
+  weeks?: number[];
+  lastN?: number;
+}
+
+/** One player's production over a window, on a named scoring preset. */
+export interface PlayerSplit {
+  player: PlayerRef;
+  group: string;
+  summary: PointsSummary;
+  totals: StatValues;
+}
+
+/** One game both (or all) compared players appeared in. */
+export interface HeadToHeadGame {
+  date: string | null;
+  week: number | null;
+  points: Record<string, number>;
+  /** Player id with the most points, or null when they tied. */
+  winner: string | null;
+}
+
+export interface HeadToHeadRecord {
+  playerId: string;
+  name: string;
+  wins: number;
+  ties: number;
+  /** Mean points minus the mean of everyone else's, across shared games. */
+  averageMargin: number;
+}
+
+/** Only games every compared player played count, so the sample is like-for-like. */
+export interface PlayerHeadToHead {
+  sharedGames: number;
+  records: HeadToHeadRecord[];
+  /** Player id that won the most shared games, or null when tied. */
+  leader: string | null;
+  games: HeadToHeadGame[];
+}
+
+export interface SeriesGame {
+  gameId: string;
+  date: string;
+  status: string;
+  home: string;
+  away: string;
+  score: { home: number; away: number } | null;
+  /** Team abbreviation, or null for a tie or a game that has not been played. */
+  winner: string | null;
+}
+
+export interface SeriesRecord {
+  team: string;
+  wins: number;
+  losses: number;
+  scoredFor: number;
+  scoredAgainst: number;
+  homeWins: number;
+  awayWins: number;
+}
+
+/** Two teams' meetings over a window, plus the games still to come. */
+export interface TeamSeries {
+  teams: [string, string];
+  played: number;
+  upcoming: number;
+  nextMeeting: string | null;
+  records: [SeriesRecord, SeriesRecord];
+  games: SeriesGame[];
 }

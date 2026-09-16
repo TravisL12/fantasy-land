@@ -5,6 +5,7 @@ import { MatchupRatingsTool } from './baseball/matchup-ratings.tool.js';
 import { PitcherStartsTool } from './baseball/pitcher-starts.tool.js';
 import { PlayerStatusTool } from './baseball/player-status.tool.js';
 import { ProbablePitchersTool } from './baseball/probable-pitchers.tool.js';
+import { TeamHeadToHeadTool } from './baseball/team-head-to-head.tool.js';
 import { SleeperUserService } from './sleeper/sleeper.service.js';
 import { SleeperUserInfoTool } from './sleeper/user-info.tool.js';
 import { SleeperUserLeaguesTool } from './sleeper/user-leagues.tool.js';
@@ -29,6 +30,7 @@ const TOOLS = [
   ProbablePitchersTool,
   PitcherStartsTool,
   MatchupRatingsTool,
+  TeamHeadToHeadTool,
   PlayerStatusTool,
   SleeperUserInfoTool,
   SleeperUserLeaguesTool,

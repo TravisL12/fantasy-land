@@ -3,6 +3,7 @@ import type {
   PlayerStatsResponseDto,
   StatsResponseDto,
 } from '../../sports/dto/stats-response.dto.js';
+import { WINDOW_DEFAULTS } from '../../sports/sports.constants.js';
 import type { SportsService } from '../../sports/sports.service.js';
 import { ComparePlayersTool } from './compare-players.tool.js';
 import { FindPlayerTool } from './find-player.tool.js';
@@ -237,31 +238,83 @@ describe('sports tools', () => {
   });
 
   describe('compare_players', () => {
-    it('scores every player on the same preset and names the leader', async () => {
-      const sports = sportsStub();
-      const result = (await new ComparePlayersTool(sports).execute({
+    const comparison = {
+      sport: 'nfl',
+      players: [],
+      bestPointsPerGame: 'Devaughn Vele',
+      headToHead: { sharedGames: 0, records: [], leader: null, games: [] },
+    };
+
+    const compareStub = () =>
+      ({
+        comparePlayers: vi.fn().mockResolvedValue(comparison),
+      }) as unknown as SportsService;
+
+    it('passes the players and scoring through to the comparison', async () => {
+      const sports = compareStub();
+      const result = await new ComparePlayersTool(sports).execute({
         playerIds: ['11834', '9509'],
         scoring: 'ppr',
-      })) as { players: unknown[]; bestPointsPerGame: string };
+      });
 
-      expect(result.players).toHaveLength(2);
-      expect(result.bestPointsPerGame).toBe('Devaughn Vele');
-      expect(vi.mocked(sports.getPlayerStats)).toHaveBeenCalledWith(
+      expect(result).toBe(comparison);
+      expect(vi.mocked(sports.comparePlayers)).toHaveBeenCalledWith(
         'nfl',
-        '9509',
+        ['11834', '9509'],
         expect.objectContaining({ scoring: 'ppr' }),
+      );
+    });
+
+    it('turns the interval arguments into a window', async () => {
+      const sports = compareStub();
+      await new ComparePlayersTool(sports).execute({
+        playerIds: ['11834', '9509'],
+        startDate: '2025-09-01',
+        endDate: '2025-10-01',
+        // Small models send numbers as strings and a lone value for an array.
+        weeks: '3',
+        lastN: '4',
+      });
+
+      expect(vi.mocked(sports.comparePlayers)).toHaveBeenCalledWith(
+        'nfl',
+        ['11834', '9509'],
+        expect.objectContaining({
+          window: {
+            startDate: '2025-09-01',
+            endDate: '2025-10-01',
+            weeks: [3],
+            lastN: 4,
+          },
+        }),
+      );
+    });
+
+    it('caps lastN so a window cannot ask for an unbounded log', async () => {
+      const sports = compareStub();
+      await new ComparePlayersTool(sports).execute({
+        playerIds: ['1', '2'],
+        lastN: 500,
+      });
+
+      expect(vi.mocked(sports.comparePlayers)).toHaveBeenCalledWith(
+        'nfl',
+        ['1', '2'],
+        expect.objectContaining({
+          window: expect.objectContaining({ lastN: WINDOW_DEFAULTS.maxLastN }),
+        }),
       );
     });
 
     it('needs at least two players', async () => {
       await expect(
-        new ComparePlayersTool(sportsStub()).execute({ playerIds: ['11834'] }),
+        new ComparePlayersTool(compareStub()).execute({ playerIds: ['11834'] }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('refuses more players than it will compare', async () => {
       await expect(
-        new ComparePlayersTool(sportsStub()).execute({
+        new ComparePlayersTool(compareStub()).execute({
           playerIds: ['1', '2', '3', '4', '5'],
         }),
       ).rejects.toBeInstanceOf(BadRequestException);

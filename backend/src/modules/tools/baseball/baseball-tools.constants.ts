@@ -27,6 +27,31 @@ export const TEAM_PARAM = {
   description: 'Filter to one team abbreviation, e.g. "NYY".',
 } as const;
 
+export const TEAM_SIDE_PARAMS = {
+  teamA: {
+    type: 'string',
+    description: 'First team abbreviation, e.g. "NYY".',
+  },
+  teamB: {
+    type: 'string',
+    description: 'The team to compare against, e.g. "BOS".',
+  },
+} as const;
+
+/** A series is a handful of games however long the window is, so it is uncapped. */
+export const SERIES_DATE_PARAMS = {
+  startDate: {
+    type: 'string',
+    description:
+      'Only count games on or after this date, as YYYY-MM-DD. Leave both dates out for the whole season.',
+  },
+  endDate: {
+    type: 'string',
+    description:
+      'Only count games on or before this date, as YYYY-MM-DD. Pass both dates to measure team stats over that interval too.',
+  },
+} as const;
+
 export const MATCHUP_SIDE_PARAM = {
   type: 'string',
   enum: Object.values(MATCHUP_SIDES),

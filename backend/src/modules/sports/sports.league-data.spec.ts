@@ -32,13 +32,15 @@ const game = (
   home: string,
   away: string,
   probables: ScheduledGame['probables'] = { home: null, away: null },
+  score: ScheduledGame['score'] = null,
 ): ScheduledGame => ({
   gameId: `${date}-${home}`,
   date,
-  status: 'Scheduled',
+  status: score ? 'Final' : 'Scheduled',
   home,
   away,
   probables,
+  score,
 });
 
 const starter = (
@@ -94,6 +96,7 @@ const buildProvider = (): LeagueDataProvider => ({
     ],
   }),
   getSchedule: vi.fn().mockResolvedValue(schedule),
+  getHeadToHead: vi.fn().mockResolvedValue(schedule),
   getTeamStrength: vi.fn().mockResolvedValue([
     { team: 'BOS', gamesPlayed: 150, hitting: { runs: 500 }, pitching: {} },
     { team: 'PHI', gamesPlayed: 150, hitting: { runs: 900 }, pitching: {} },
@@ -242,6 +245,90 @@ describe('SportsService league data', () => {
       service.getProbableStarters('mlb', { startDate: 'tomorrow' }),
     ).rejects.toThrow(BadRequestException);
     expect(provider.getSchedule).not.toHaveBeenCalled();
+  });
+
+  describe('team head-to-head', () => {
+    const played = [
+      game('2026-04-10', 'PHI', 'BOS', undefined, { home: 5, away: 2 }),
+      game('2026-04-11', 'PHI', 'BOS', undefined, { home: 1, away: 3 }),
+      game('2026-09-26', 'BOS', 'PHI'),
+    ];
+
+    it('returns the series record and both teams, rated as opponents', async () => {
+      const provider = buildProvider();
+      vi.mocked(provider.getHeadToHead).mockResolvedValue(played);
+      const service = new SportsService([provider]);
+
+      const result = await service.getTeamHeadToHead('mlb', {
+        teamA: 'phi',
+        teamB: 'BOS',
+      });
+
+      expect(provider.getHeadToHead).toHaveBeenCalledWith({
+        season: '2026',
+        teams: ['PHI', 'BOS'],
+        startDate: undefined,
+        endDate: undefined,
+      });
+      expect(result.series).toMatchObject({ played: 2, upcoming: 1 });
+      expect(result.series.records[0]).toMatchObject({ team: 'PHI', wins: 1 });
+      // BOS score the fewest runs, so they are the softer lineup to face.
+      expect(result.teams).toMatchObject([
+        { team: 'PHI', asOpponent: { pitching: { score: 25 } } },
+        { team: 'BOS', asOpponent: { pitching: { score: 75 } } },
+      ]);
+    });
+
+    it('measures team stats over the interval when both dates are given', async () => {
+      const provider = buildProvider();
+      const service = new SportsService([provider]);
+
+      await service.getTeamHeadToHead('mlb', {
+        teamA: 'PHI',
+        teamB: 'BOS',
+        ...range,
+      });
+
+      expect(provider.getTeamStrength).toHaveBeenCalledWith('2026', range);
+    });
+
+    it('uses season-to-date team stats when the window is open-ended', async () => {
+      const provider = buildProvider();
+      const service = new SportsService([provider]);
+
+      await service.getTeamHeadToHead('mlb', {
+        teamA: 'PHI',
+        teamB: 'BOS',
+        startDate: range.startDate,
+      });
+
+      expect(provider.getTeamStrength).toHaveBeenCalledWith('2026', undefined);
+    });
+
+    it('says when the teams never met rather than reporting 0-0', async () => {
+      const provider = buildProvider();
+      vi.mocked(provider.getHeadToHead).mockResolvedValue([]);
+      const service = new SportsService([provider]);
+
+      const result = await service.getTeamHeadToHead('mlb', {
+        teamA: 'PHI',
+        teamB: 'BOS',
+      });
+
+      expect(result.series.played).toBe(0);
+      expect(result.note).toMatch(/no games against each other/);
+    });
+
+    it('lists the real abbreviations when one is wrong, and refuses a self-comparison', async () => {
+      const service = new SportsService([buildProvider()]);
+
+      await expect(
+        service.getTeamHeadToHead('mlb', { teamA: 'PHI', teamB: 'PHILLY' }),
+      ).rejects.toThrow(/BOS, PHI/);
+      await expect(
+        service.getTeamHeadToHead('mlb', { teamA: 'PHI', teamB: 'phi' }),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   it('says so when a sport has no schedule data instead of failing obscurely', async () => {

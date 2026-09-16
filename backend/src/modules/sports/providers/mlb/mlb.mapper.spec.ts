@@ -91,6 +91,53 @@ describe('MLB mapper', () => {
 });
 
 describe('MLB schedule mapper', () => {
+  const scheduleDay = (
+    status: { detailedState: string; abstractGameState?: string },
+    scores: { home?: number; away?: number },
+  ) => [
+    {
+      date: '2026-09-16',
+      games: [
+        {
+          gamePk: 1,
+          officialDate: '2026-09-16',
+          status,
+          teams: {
+            home: { team: { id: 143, name: 'Philadelphia Phillies' }, score: scores.home },
+            away: { team: { id: 113, name: 'Cincinnati Reds' }, score: scores.away },
+          },
+        },
+      ],
+    },
+  ];
+
+  it('keeps the final score as the result of the game', () => {
+    const [game] = mapSchedule(
+      scheduleDay(
+        { detailedState: 'Final', abstractGameState: 'Final' },
+        { home: 6, away: 2 },
+      ),
+      teams,
+    );
+
+    expect(game.score).toEqual({ home: 6, away: 2 });
+  });
+
+  // A game in progress already has a running score; treating it as final
+  // would hand a head-to-head record a result that has not happened yet.
+  it('leaves a live game without a score', () => {
+    const [game] = mapSchedule(
+      scheduleDay(
+        { detailedState: 'In Progress', abstractGameState: 'Live' },
+        { home: 3, away: 1 },
+      ),
+      teams,
+    );
+
+    expect(game.score).toBe(null);
+  });
+
+
   it('maps probable pitchers to both sides of a game', () => {
     const games = mapSchedule(
       [
@@ -125,6 +172,7 @@ describe('MLB schedule mapper', () => {
         status: 'Scheduled',
         home: 'PHI',
         away: 'CIN',
+        score: null,
         probables: {
           home: {
             playerId: '1',
