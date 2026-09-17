@@ -65,8 +65,12 @@ export const AVAILABILITY_PARAM = {
   description: `Availability values to include. Defaults to ${AVAILABILITY.injured} and ${AVAILABILITY.inactive}, i.e. players who cannot play right now.`,
 } as const;
 
-export const PROBABLES_LIMIT = { default: 20, max: 60 } as const;
-export const STARTS_LIMIT = { default: 20, max: 40 } as const;
+/**
+ * Maxima are bounded by MAX_TOOL_RESULT_CHARS, not by taste: a start costs
+ * ~850 serialized characters, so a higher cap would only truncate itself.
+ */
+export const PROBABLES_LIMIT = { default: 20, max: 30 } as const;
+export const STARTS_LIMIT = { default: 20, max: 25 } as const;
 export const STATUS_LIMIT = { default: 25, max: 100 } as const;
 
 export const BASEBALL_TOOL_MESSAGES = {

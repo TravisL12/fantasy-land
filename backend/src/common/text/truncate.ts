@@ -1,9 +1,13 @@
 /**
  * Long tool payloads crowd out the question, but cutting too hard throws away
- * real rows. Sized against DEFAULT_OLLAMA_NUM_CTX: ~3k tokens per result, which
+ * real rows. Sized against DEFAULT_OLLAMA_NUM_CTX: ~6k tokens per result, which
  * at ~450 tok/s of prefill is a few seconds each. Raise both together.
+ *
+ * It is also the ceiling every tool's own `limit` has to live under: a limit
+ * the model is told it may use should fit here, or that tool truncates itself
+ * on arguments we invited. Check both when changing either.
  */
-export const MAX_TOOL_RESULT_CHARS = 12_000;
+export const MAX_TOOL_RESULT_CHARS = 24_000;
 
 export const TRUNCATION_NOTICE =
   '\n…[truncated: ask for a narrower slice of this data]';
