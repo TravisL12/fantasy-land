@@ -58,4 +58,43 @@ describe('McpService', () => {
 
     await service.onModuleDestroy();
   });
+
+  it('hides denied tools, so they never reach the model or run', async () => {
+    const service = build([
+      {
+        name: 'sleeper',
+        command: process.execPath,
+        args: [require.resolve('sleeper-mcp')],
+        denyTools: ['clear_cache'],
+      },
+    ]);
+
+    const names = (await service.listTools()).map((tool) => tool.name);
+    expect(names).not.toContain('clear_cache');
+    expect(names).toContain('get_nfl_state');
+
+    await expect(service.callTool('clear_cache', {})).resolves.toEqual({
+      text: MCP_MESSAGES.unknownTool('clear_cache'),
+      isError: true,
+    });
+
+    await service.onModuleDestroy();
+  });
+
+  it('exposes only the allowed tools when allowTools is set', async () => {
+    const service = build([
+      {
+        name: 'sleeper',
+        command: process.execPath,
+        args: [require.resolve('sleeper-mcp')],
+        allowTools: ['get_nfl_state'],
+      },
+    ]);
+
+    expect((await service.listTools()).map((tool) => tool.name)).toEqual([
+      'get_nfl_state',
+    ]);
+
+    await service.onModuleDestroy();
+  });
 });

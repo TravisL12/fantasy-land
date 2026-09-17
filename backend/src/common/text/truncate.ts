@@ -1,5 +1,9 @@
-/** Local models have small context windows — long tool payloads crowd out the question. */
-export const MAX_TOOL_RESULT_CHARS = 6_000;
+/**
+ * Long tool payloads crowd out the question, but cutting too hard throws away
+ * real rows. Sized against DEFAULT_OLLAMA_NUM_CTX: ~3k tokens per result, which
+ * at ~450 tok/s of prefill is a few seconds each. Raise both together.
+ */
+export const MAX_TOOL_RESULT_CHARS = 12_000;
 
 export const TRUNCATION_NOTICE =
   '\n…[truncated: ask for a narrower slice of this data]';

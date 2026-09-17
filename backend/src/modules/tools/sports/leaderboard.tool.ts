@@ -24,7 +24,8 @@ export class LeaderboardTool implements FantasyTool {
     name: 'get_leaderboard',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Rank players by fantasy points or any stat, filtered by position, week and stat group. Use this for "best/top players" questions. Call get_sport_catalog first if you need the valid group, position, stat or scoring keys.',
+      'Rank players by fantasy points or any stat, filtered by position, week and stat group. Use this for "best/top players" questions. Call get_sport_catalog first if you need the valid group, position, stat or scoring keys. ' +
+      'Rows come back already ranked, so report them in the order given rather than re-sorting. Each row carries the player\'s id, name, team and position plus gamesPlayed, fantasyPoints (the total over the range) and fantasyPointsPerGame (the rate — use this one when games played differ), and a nested "stats" object keyed by stat key, e.g. stats.rec_yd. The top-level "total" is how many players matched before the limit, and "scoring" names the preset that was applied.',
     parameters: {
       type: 'object',
       properties: {

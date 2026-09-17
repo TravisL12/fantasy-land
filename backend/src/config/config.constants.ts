@@ -21,7 +21,13 @@ export const DEFAULT_OLLAMA_TEMPERATURE = 0.3;
  * context window, so the system prompt and tool schemas have to be paid for
  * explicitly. 16k fits those plus a few rounds of tool results on a 9b at q4.
  */
-export const DEFAULT_OLLAMA_NUM_CTX = 16_384;
+/**
+ * A ceiling, not an allocation: tokens cost prefill time only once actually
+ * used, while too low a value makes Ollama silently drop the oldest messages —
+ * the system prompt — partway through a multi-round tool investigation.
+ * Ollama's own OLLAMA_CONTEXT_LENGTH caps this; anything above it is clamped.
+ */
+export const DEFAULT_OLLAMA_NUM_CTX = 65_536;
 /** Local models are slow; a long generation shouldn't look like a failure. */
 export const DEFAULT_OLLAMA_TIMEOUT_MS = 300_000;
 export const DEFAULT_CHAT_MAX_TOOL_ROUNDS = 6;

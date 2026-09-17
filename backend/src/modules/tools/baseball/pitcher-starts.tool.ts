@@ -27,7 +27,8 @@ export class PitcherStartsTool implements FantasyTool {
     name: 'get_pitcher_starts',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'How many times each starting pitcher is expected to pitch over a date range, with each start rated against the opposing lineup. Use this for two-start week planning and weekly streaming. Every start is marked "confirmed" (announced by the league) or "projected" (inferred from the pitcher\'s rest pattern) — say which when you answer, and never present a projected start as certain. Pass playerIds whenever you know which pitchers matter: without them the result only covers pitchers whose next start is already announced, and the returned coverageNote explains what was missed.',
+      'How many times each starting pitcher is expected to pitch over a date range, with each start rated against the opposing lineup. Use this for two-start week planning and weekly streaming. Every start is marked "confirmed" (announced by the league) or "projected" (inferred from the pitcher\'s rest pattern) — say which when you answer, and never present a projected start as certain. Pass playerIds whenever you know which pitchers matter: without them the result only covers pitchers whose next start is already announced, and the returned coverageNote explains what was missed. ' +
+      'Each pitcher carries "starts" (one entry per start, with date, opponent, isHome, confidence and a matchup rating), "confirmedStarts" — how many of them are announced rather than projected — and "matchupScore", the mean 0-100 matchup across the window, which is how to compare two two-start pitchers.',
     parameters: {
       type: 'object',
       properties: {

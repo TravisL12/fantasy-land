@@ -93,7 +93,7 @@ export class McpService implements OnModuleDestroy {
         }),
       );
       this.clients.push(client);
-      this.register(server.name, client, await client.listTools());
+      this.register(server, client, await client.listTools());
     } catch (error) {
       this.logger.error(
         `${MCP_MESSAGES.connectFailed(server.name)}: ${messageOf(error)}`,
@@ -102,11 +102,14 @@ export class McpService implements OnModuleDestroy {
   }
 
   private register(
-    serverName: string,
+    server: McpServerConfig,
     client: Client,
     { tools }: Awaited<ReturnType<Client['listTools']>>,
   ): void {
-    for (const tool of tools) {
+    const serverName = server.name;
+    const exposed = tools.filter((tool) => isExposed(server, tool.name));
+
+    for (const tool of exposed) {
       // Two servers can offer the same tool name; the later one gets namespaced.
       const name = this.tools.has(tool.name)
         ? `${serverName}_${tool.name}`
@@ -122,9 +125,21 @@ export class McpService implements OnModuleDestroy {
         },
       });
     }
-    this.logger.log(`MCP server "${serverName}" ready (${tools.length} tools)`);
+    const skipped = tools.length - exposed.length;
+    this.logger.log(
+      `MCP server "${serverName}" ready (${exposed.length} tools` +
+        `${skipped ? `, ${skipped} filtered out` : ''})`,
+    );
   }
 }
+
+/**
+ * Filtered by the name the server uses, before namespacing, so a config entry
+ * matches what that server's own docs call the tool.
+ */
+const isExposed = (server: McpServerConfig, toolName: string): boolean =>
+  (server.allowTools?.includes(toolName) ?? true) &&
+  !server.denyTools?.includes(toolName);
 
 const toText = (content: unknown): string => {
   const blocks = Array.isArray(content) ? (content as TextContent[]) : [];
