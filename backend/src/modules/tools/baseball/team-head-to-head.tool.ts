@@ -37,7 +37,7 @@ export class TeamHeadToHeadTool implements FantasyTool {
 
   async execute(args: Record<string, unknown>) {
     return this.sports.getTeamHeadToHead(
-      asSport(args.sport ?? SPORT_KEYS.mlb),
+      asSport(args.sport, SPORT_KEYS.mlb),
       {
         teamA: requireString(args, 'teamA'),
         teamB: requireString(args, 'teamB'),

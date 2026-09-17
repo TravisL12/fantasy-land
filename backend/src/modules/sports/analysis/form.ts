@@ -1,3 +1,4 @@
+import { round } from '../../../common/math/number.js';
 import { sumStats, summarizePoints } from '../scoring/scoring.js';
 import { FORM_DEFAULTS, FORM_TRENDS } from '../sports.constants.js';
 import type {
@@ -18,8 +19,6 @@ const trendFor = (recent: number, season: number): FormTrend => {
   if (season - recent > threshold) return FORM_TRENDS.cold;
   return FORM_TRENDS.steady;
 };
-
-const round = (value: number) => Math.round(value * 100) / 100;
 
 /**
  * Compares a player's last `window` games with their season as a whole.

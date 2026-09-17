@@ -3,7 +3,7 @@ import { FORM_DEFAULTS } from '../../sports/sports.constants.js';
 import { SportsService } from '../../sports/sports.service.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
 import type { FantasyTool, ToolDefinition } from '../tools.types.js';
-import { asNumber, asSport, asString, clamp, requireString } from '../tools.utils.js';
+import { asLimit, asSport, asString, requireString } from '../tools.utils.js';
 import {
   PLAYER_ID_PARAM,
   SCORING_PARAM,
@@ -50,10 +50,10 @@ export class PlayerFormTool implements FantasyTool {
         season: asString(args.season),
         group: asString(args.group),
         scoring: asString(args.scoring),
-        window: clamp(
-          asNumber(args.window) ?? FORM_DEFAULTS.window,
+        window: asLimit(
+          args.window,
+          { default: FORM_DEFAULTS.window, max: FORM_DEFAULTS.maxWindow },
           FORM_DEFAULTS.minWindow,
-          FORM_DEFAULTS.maxWindow,
         ),
       },
     );

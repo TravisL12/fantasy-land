@@ -14,7 +14,11 @@ import {
 import type { ChartPoint } from '@/components/Chart';
 import type { StatFormat } from '@/api/sports';
 import { EMPTY_STAT, formatStat } from '@/utils';
-import { STATUS_TONES, TEXT_FORMAT } from './DashboardView.constants';
+import {
+  DEFAULT_STATUS_TONE,
+  STATUS_TONES,
+  TEXT_FORMAT,
+} from './DashboardView.constants';
 import type { DashboardRow, StatusTone, TableRows } from './DashboardView.types';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -55,6 +59,10 @@ export const resolveRows = (
   return isRecord(found) ? [found] : [];
 };
 
+/** A widget's own row cap; an uncapped widget keeps everything the source returned. */
+export const limitRows = <TRow,>(rows: TRow[], limit?: number): TRow[] =>
+  limit ? rows.slice(0, limit) : rows;
+
 export const toRows = (
   raw: Record<string, unknown>[],
   widget: TableWidget,
@@ -63,7 +71,7 @@ export const toRows = (
     key: String(getPath(data, widget.rowKey ?? DEFAULT_ROW_KEY) ?? index),
     data,
   }));
-  return widget.limit ? rows.slice(0, widget.limit) : rows;
+  return limitRows(rows, widget.limit);
 };
 
 export const tableWidgets = (spec: DashboardSpec): TableWidget[] =>
@@ -191,5 +199,5 @@ export const statusTone = (status: string): StatusTone => {
   const match = Object.entries(STATUS_TONES).find(([, words]) =>
     words.some((word) => text.includes(word)),
   );
-  return (match?.[0] as StatusTone) ?? 'neutral';
+  return (match?.[0] as StatusTone) ?? DEFAULT_STATUS_TONE;
 };

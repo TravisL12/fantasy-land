@@ -3,13 +3,7 @@ import { StatsQueryDto } from '../../sports/dto/stats-query.dto.js';
 import { SportsService } from '../../sports/sports.service.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
 import type { FantasyTool, ToolDefinition } from '../tools.types.js';
-import {
-  asNumber,
-  asSport,
-  asString,
-  clamp,
-  requireString,
-} from '../tools.utils.js';
+import { asLimit, asSport, asString, requireString } from '../tools.utils.js';
 import {
   FIND_PLAYER_LIMIT,
   SEASON_PARAM,
@@ -53,11 +47,7 @@ export class FindPlayerTool implements FantasyTool {
   async execute(args: Record<string, unknown>) {
     const query = requireString(args, 'query');
     const sport = asSport(args.sport);
-    const limit = clamp(
-      asNumber(args.limit) ?? FIND_PLAYER_LIMIT.default,
-      1,
-      FIND_PLAYER_LIMIT.max,
-    );
+    const limit = asLimit(args.limit, FIND_PLAYER_LIMIT);
 
     // Every group has to be searched, or a whole half of a sport is invisible:
     // MLB's first group is hitting, so a pitcher would never be found.

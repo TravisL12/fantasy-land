@@ -41,6 +41,9 @@ export const METER_TONES = {
  * actually come back from the availability and form engines. Anything unknown
  * stays neutral rather than being guessed into a severity.
  */
+/** Wording we don't recognise wears no severity at all. */
+export const DEFAULT_STATUS_TONE = 'neutral';
+
 export const STATUS_TONES = {
   good: ['active', 'available', 'healthy', 'hot', 'confirmed'],
   warning: ['questionable', 'day-to-day', 'projected', 'minors', 'steady'],

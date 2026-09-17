@@ -11,6 +11,8 @@ export const CHART_COPY = {
 /** Mark specs from the house data-viz rules, in px. */
 export const CHART_SPEC = {
   height: 280,
+  /** Used until the figure has been measured (and where ResizeObserver is missing). */
+  defaultWidth: 640,
   /** Bars are capped rather than filling their band — the leftover is air. */
   maxBarWidth: 24,
   /** Plot's own band padding, which the bar inset has to allow for. */
@@ -22,5 +24,8 @@ export const CHART_SPEC = {
   cornerRadius: 4,
   /** Room for the direct labels that ride the end of each line. */
   labelRoom: 64,
+  /** The gap between a line's end dot and its direct label. */
+  labelOffset: 10,
+  fontSize: '12px',
   margin: { top: 16, right: 16, bottom: 36, left: 48 },
 } as const;

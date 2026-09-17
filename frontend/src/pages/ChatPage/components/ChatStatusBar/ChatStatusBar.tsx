@@ -1,15 +1,7 @@
-import { useGetChatStatusQuery, type ChatTool } from '@/api/chat';
+import { useGetChatStatusQuery } from '@/api/chat';
 import { STATUS_COPY } from './ChatStatusBar.constants';
 import { Bar, Pill } from './ChatStatusBar.styles';
-
-/** Groups the tool list by where each tool came from. */
-const countBySource = (tools: ChatTool[]) =>
-  [
-    ...tools.reduce(
-      (counts, { source }) => counts.set(source, (counts.get(source) ?? 0) + 1),
-      new Map<string, number>(),
-    ),
-  ];
+import { countBySource } from './ChatStatusBar.utils';
 
 /** Shows which local model is answering and whether its tools are wired up. */
 export const ChatStatusBar = () => {

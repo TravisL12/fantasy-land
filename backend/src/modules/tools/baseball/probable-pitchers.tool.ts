@@ -3,7 +3,7 @@ import { SPORT_KEYS } from '../../sports/sports.constants.js';
 import { SportsService } from '../../sports/sports.service.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
 import type { FantasyTool, ToolDefinition } from '../tools.types.js';
-import { asNumber, asSport, asString, clamp } from '../tools.utils.js';
+import { asLimit, asSport, asString } from '../tools.utils.js';
 import {
   BASEBALL_SPORT_PARAM,
   BASEBALL_TOOL_MESSAGES,
@@ -39,14 +39,10 @@ export class ProbablePitchersTool implements FantasyTool {
   constructor(private readonly sports: SportsService) {}
 
   async execute(args: Record<string, unknown>) {
-    const limit = clamp(
-      asNumber(args.limit) ?? PROBABLES_LIMIT.default,
-      1,
-      PROBABLES_LIMIT.max,
-    );
+    const limit = asLimit(args.limit, PROBABLES_LIMIT);
 
     const result = await this.sports.getProbableStarters(
-      asSport(args.sport ?? SPORT_KEYS.mlb),
+      asSport(args.sport, SPORT_KEYS.mlb),
       {
         season: asString(args.season),
         startDate: asString(args.startDate),

@@ -37,9 +37,3 @@ export const Note = styled.span`
   color: ${({ theme }) => theme.colors.textMuted};
   font-size: 0.85rem;
 `;
-
-export const Empty = styled.p`
-  margin: 0;
-  color: ${({ theme }) => theme.colors.textMuted};
-  font-size: 0.9rem;
-`;

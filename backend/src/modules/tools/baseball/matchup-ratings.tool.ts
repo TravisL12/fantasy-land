@@ -7,7 +7,7 @@ import { SportsService } from '../../sports/sports.service.js';
 import type { MatchupSide } from '../../sports/sports.types.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
 import type { FantasyTool, ToolDefinition } from '../tools.types.js';
-import { asNumber, asSport, asString, clamp } from '../tools.utils.js';
+import { asLimit, asSport, asString } from '../tools.utils.js';
 import {
   BASEBALL_SPORT_PARAM,
   MATCHUP_SIDE_PARAM,
@@ -45,16 +45,15 @@ export class MatchupRatingsTool implements FantasyTool {
     const side = (asString(args.side) ??
       MATCHUP_SIDES.pitching) as MatchupSide;
     const result = await this.sports.getMatchupBoard(
-      asSport(args.sport ?? SPORT_KEYS.mlb),
+      asSport(args.sport, SPORT_KEYS.mlb),
       side,
       asString(args.season),
     );
 
-    const limit = clamp(
-      asNumber(args.limit) ?? result.teams.length,
-      1,
-      PROBABLES_LIMIT.max,
-    );
+    const limit = asLimit(args.limit, {
+      default: result.teams.length,
+      max: PROBABLES_LIMIT.max,
+    });
 
     return { ...result, teams: result.teams.slice(0, limit) };
   }

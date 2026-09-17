@@ -8,7 +8,7 @@ import {
 import type { SportCatalog } from '../../sports/sports.types.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
 import type { FantasyTool, ToolDefinition } from '../tools.types.js';
-import { asNumber, asSport, asString, clamp } from '../tools.utils.js';
+import { asLimit, asNumber, asSport, asString } from '../tools.utils.js';
 import {
   LEADERBOARD_LIMIT,
   SCORING_PARAM,
@@ -90,11 +90,7 @@ export class LeaderboardTool implements FantasyTool {
         sort,
         order: asString(args.order) ?? SORT_ORDERS.desc,
         minGames: asNumber(args.minGames) ?? 0,
-        limit: clamp(
-          asNumber(args.limit) ?? LEADERBOARD_LIMIT.default,
-          1,
-          LEADERBOARD_LIMIT.max,
-        ),
+        limit: asLimit(args.limit, LEADERBOARD_LIMIT),
       }),
     );
 

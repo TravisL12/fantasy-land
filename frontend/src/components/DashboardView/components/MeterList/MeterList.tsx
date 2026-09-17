@@ -1,14 +1,15 @@
 import { DEFAULT_LABEL_PATH, DEFAULT_METER_MAX } from '@/api/dashboards';
 import { DASHBOARD_VIEW_COPY } from '../../DashboardView.constants';
-import { formatCell, getPath, toNumber } from '../../DashboardView.utils';
+import { Empty } from '../../DashboardView.styles';
+import { formatCell, getPath, limitRows, toNumber } from '../../DashboardView.utils';
 import { meterTone } from './MeterList.utils';
-import { Empty, Fill, Heading, List, Reading, Row, Track } from './MeterList.styles';
+import { Fill, Heading, List, Reading, Row, Track } from './MeterList.styles';
 import type { MeterListProps } from './MeterList.types';
 
 /** A rating against its limit — a meter, not a one-bar bar chart. */
 export const MeterList = ({ widget, rows }: MeterListProps) => {
   const max = widget.max ?? DEFAULT_METER_MAX;
-  const shown = widget.limit ? rows.slice(0, widget.limit) : rows;
+  const shown = limitRows(rows, widget.limit);
 
   if (shown.length === 0) return <Empty>{DASHBOARD_VIEW_COPY.empty}</Empty>;
 

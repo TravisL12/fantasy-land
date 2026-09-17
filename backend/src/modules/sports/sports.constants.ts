@@ -39,6 +39,18 @@ export const MATCHUP_GRADES = {
   brutal: 'brutal',
 } as const;
 
+/**
+ * The matchup rating scale. `neutral` is what a team scores when there is no
+ * spread to rank it against, and the two place counts keep a 0-100 score and a
+ * rate like OPS from being rounded to the same precision.
+ */
+export const MATCHUP_SCALE = {
+  max: 100,
+  neutral: 50,
+  scorePlaces: 1,
+  valuePlaces: 3,
+} as const;
+
 /** Score boundaries (0-100, higher = easier matchup) for each grade, best first. */
 export const MATCHUP_GRADE_CUTOFFS = [
   { grade: MATCHUP_GRADES.great, min: 80 },

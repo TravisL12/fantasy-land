@@ -1,14 +1,10 @@
+import { median, round } from '../../../common/math/number.js';
 import type {
   PointsSummary,
   ScoringRules,
   StatDefinition,
   StatValues,
 } from '../sports.types.js';
-
-const round = (value: number, places = 2) => {
-  const factor = 10 ** places;
-  return Math.round(value * factor) / factor;
-};
 
 export const calculateFantasyPoints = (
   stats: StatValues,
@@ -42,14 +38,12 @@ export const summarizePoints = (points: number[]): PointsSummary => {
   const variance =
     points.reduce((sum, p) => sum + (p - average) ** 2, 0) / games;
   const sorted = [...points].sort((a, b) => a - b);
-  const mid = Math.floor(games / 2);
-  const median = games % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 
   return {
     games,
     total: round(total),
     average: round(average),
-    median: round(median),
+    median: round(median(points)),
     stdDev: round(Math.sqrt(variance)),
     floor: sorted[0],
     ceiling: sorted[games - 1],

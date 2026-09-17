@@ -16,8 +16,6 @@ import {
   toTipRows,
 } from './Chart.utils';
 
-const DEFAULT_WIDTH = 640;
-
 /**
  * Line and bar charts drawn with Observable Plot. The two kinds share one data
  * shape — long points plus a series order — so a widget only has to say which
@@ -37,7 +35,7 @@ export const Chart = ({
   formatValue = String,
 }: ChartProps) => {
   const theme = useTheme();
-  const { ref, width } = useElementWidth(DEFAULT_WIDTH);
+  const { ref, width } = useElementWidth(CHART_SPEC.defaultWidth);
   const [showData, setShowData] = useState(false);
 
   const isLine = kind === CHART_KINDS.line;
@@ -137,7 +135,7 @@ export const Chart = ({
               // Text wears an ink token; the colored dot beside it carries identity.
               fill: palette.textMuted,
               textAnchor: 'start',
-              dx: 10,
+              dx: CHART_SPEC.labelOffset,
             }),
           ),
           // The crosshair finds the x, and one tip lists every series there.
@@ -160,7 +158,7 @@ export const Chart = ({
         background: 'transparent',
         color: palette.textMuted,
         fontFamily: fonts.body,
-        fontSize: '12px',
+        fontSize: CHART_SPEC.fontSize,
       },
       color,
       x: horizontal ? valueAxis : categoryAxis,

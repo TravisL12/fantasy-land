@@ -1,6 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
+import { clamp } from '../../common/math/number.js';
 import { SPORT_KEYS } from '../sports/sports.constants.js';
 import type { SportKey } from '../sports/sports.types.js';
+import type { ToolLimit } from './tools.types.js';
+
+export { clamp };
 
 /** Models sometimes send numbers as strings, or a lone string for an array. */
 export const asString = (value: unknown): string | undefined =>
@@ -60,8 +64,12 @@ export const requireString = (
   return value;
 };
 
-export const asSport = (value: unknown): SportKey => {
-  const sport = asString(value)?.toLowerCase() ?? SPORT_KEYS.nfl;
+/** `fallback` is the sport a tool is shaped for — baseball tools default to mlb. */
+export const asSport = (
+  value: unknown,
+  fallback: SportKey = SPORT_KEYS.nfl,
+): SportKey => {
+  const sport = asString(value)?.toLowerCase() ?? fallback;
   if (!(sport in SPORT_KEYS)) {
     throw new BadRequestException(
       `Unknown sport "${sport}" — expected one of ${Object.values(SPORT_KEYS).join(', ')}`,
@@ -70,5 +78,13 @@ export const asSport = (value: unknown): SportKey => {
   return sport as SportKey;
 };
 
-export const clamp = (value: number, min: number, max: number) =>
-  Math.min(Math.max(value, min), max);
+/**
+ * A tool's row cap, from its `*_LIMIT` constant. Every tool clamps the same
+ * way, and the maximum is what tools.limits.spec.ts checks against
+ * MAX_TOOL_RESULT_CHARS — a limit the model may ask for has to fit.
+ */
+export const asLimit = (
+  value: unknown,
+  { default: fallback, max }: ToolLimit,
+  min = 1,
+) => clamp(asNumber(value) ?? fallback, min, max);

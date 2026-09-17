@@ -1,17 +1,7 @@
+import { clamp, median } from '../../../common/math/number.js';
 import { START_CONFIDENCE, START_PROJECTION } from '../sports.constants.js';
 import type { ProjectedStart, StartConfidence } from '../sports.types.js';
 import { addDays, daysBetween } from '../sports.utils.js';
-
-const median = (values: number[]) => {
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2
-    ? sorted[middle]
-    : (sorted[middle - 1] + sorted[middle]) / 2;
-};
-
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(Math.max(value, min), max);
 
 /**
  * Typical days between starts, from the most recent starts only — a pitcher

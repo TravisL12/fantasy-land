@@ -6,13 +6,7 @@ import {
 import { SportsService } from '../../sports/sports.service.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
 import type { FantasyTool, ToolDefinition } from '../tools.types.js';
-import {
-  asNumber,
-  asSport,
-  asString,
-  asStringArray,
-  clamp,
-} from '../tools.utils.js';
+import { asLimit, asSport, asString, asStringArray } from '../tools.utils.js';
 import {
   AVAILABILITY_PARAM,
   BASEBALL_SPORT_PARAM,
@@ -64,7 +58,7 @@ export class PlayerStatusTool implements FantasyTool {
         : DEFAULT_AVAILABILITY;
 
     const result = await this.sports.getPlayerStatuses(
-      asSport(args.sport ?? SPORT_KEYS.mlb),
+      asSport(args.sport, SPORT_KEYS.mlb),
       {
         season: asString(args.season),
         search,
@@ -77,11 +71,7 @@ export class PlayerStatusTool implements FantasyTool {
       throw new NotFoundException(BASEBALL_TOOL_MESSAGES.noStatuses);
     }
 
-    const limit = clamp(
-      asNumber(args.limit) ?? STATUS_LIMIT.default,
-      1,
-      STATUS_LIMIT.max,
-    );
+    const limit = asLimit(args.limit, STATUS_LIMIT);
 
     return {
       ...result,

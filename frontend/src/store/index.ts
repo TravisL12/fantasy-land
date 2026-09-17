@@ -2,10 +2,8 @@ import { combineReducers, configureStore } from '@reduxjs/toolkit';
 import { baseApi } from '@/api/baseApi';
 import { loadPersistedState, savePersistedState } from './persistence';
 import { statColumnsReducer } from './slices/statColumns';
-import { uiReducer } from './slices/ui';
 
 export const rootReducer = combineReducers({
-  ui: uiReducer,
   statColumns: statColumnsReducer,
   [baseApi.reducerPath]: baseApi.reducer,
 });

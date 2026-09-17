@@ -1,6 +1,8 @@
+import { mean, round } from '../../../common/math/number.js';
 import {
   MATCHUP_GRADE_CUTOFFS,
   MATCHUP_GRADES,
+  MATCHUP_SCALE,
 } from '../sports.constants.js';
 import type {
   MatchupGrade,
@@ -19,19 +21,14 @@ const gradeFor = (score: number): MatchupGrade =>
  * a strong opponent offense is a hard matchup for the pitcher facing it.
  */
 const percentile = (value: number, all: number[], betterWhenHigh: boolean) => {
-  if (all.length < 2) return 50;
+  if (all.length < 2) return MATCHUP_SCALE.neutral;
   const worseForOpponent = all.filter((other) =>
     betterWhenHigh ? other < value : other > value,
   ).length;
   const tied = all.filter((other) => other === value).length;
   const easierRank = all.length - worseForOpponent - tied / 2;
-  return round((easierRank / all.length) * 100);
+  return round((easierRank / all.length) * MATCHUP_SCALE.max, MATCHUP_SCALE.scorePlaces);
 };
-
-const round = (value: number) => Math.round(value * 10) / 10;
-
-/** Rates like OPS and strikeout rate are meaningless at one decimal place. */
-const roundValue = (value: number) => Math.round(value * 1000) / 1000;
 
 /**
  * Rates every team as an *opponent*, so the result is how good a matchup each
@@ -61,17 +58,15 @@ export const rateMatchups = (
           {
             key: metric.key,
             label: metric.label,
-            value: roundValue(value),
+            value: round(value, MATCHUP_SCALE.valuePlaces),
             rank: percentile(value, all, metric.betterWhenHigh),
           },
         ];
       });
 
       const score = rated.length
-        ? round(
-            rated.reduce((sum, { rank }) => sum + rank, 0) / rated.length,
-          )
-        : 50;
+        ? round(mean(rated.map(({ rank }) => rank)), MATCHUP_SCALE.scorePlaces)
+        : MATCHUP_SCALE.neutral;
 
       return [team.team, { score, grade: gradeFor(score), metrics: rated }];
     }),

@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import { METER_TONES } from '../../DashboardView.constants';
+import type { MeterFillProps } from './MeterList.types';
 
 export const List = styled.ul`
   display: flex;
@@ -36,15 +37,9 @@ export const Track = styled.div`
   overflow: hidden;
 `;
 
-export const Fill = styled.div<{ $percent: number; $tone: keyof typeof METER_TONES }>`
+export const Fill = styled.div<MeterFillProps>`
   height: 100%;
   width: ${({ $percent }) => `${$percent}%`};
   border-radius: inherit;
   background: ${({ theme, $tone }) => theme.colors.status[METER_TONES[$tone]]};
-`;
-
-export const Empty = styled.p`
-  margin: 0;
-  color: ${({ theme }) => theme.colors.textMuted};
-  font-size: 0.9rem;
 `;

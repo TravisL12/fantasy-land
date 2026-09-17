@@ -51,3 +51,10 @@ export const Description = styled.p`
   margin: 0;
   color: ${({ theme }) => theme.colors.textMuted};
 `;
+
+/** "Nothing came back" — shared by every widget that can render empty. */
+export const Empty = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: 0.9rem;
+`;

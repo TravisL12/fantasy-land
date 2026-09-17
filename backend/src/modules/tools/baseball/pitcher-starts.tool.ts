@@ -4,11 +4,11 @@ import { SportsService } from '../../sports/sports.service.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
 import type { FantasyTool, ToolDefinition } from '../tools.types.js';
 import {
+  asLimit,
   asNumber,
   asSport,
   asString,
   asStringArray,
-  clamp,
 } from '../tools.utils.js';
 import {
   BASEBALL_SPORT_PARAM,
@@ -58,14 +58,10 @@ export class PitcherStartsTool implements FantasyTool {
 
   async execute(args: Record<string, unknown>) {
     const minStarts = asNumber(args.minStarts) ?? 1;
-    const limit = clamp(
-      asNumber(args.limit) ?? STARTS_LIMIT.default,
-      1,
-      STARTS_LIMIT.max,
-    );
+    const limit = asLimit(args.limit, STARTS_LIMIT);
 
     const result = await this.sports.getStarts(
-      asSport(args.sport ?? SPORT_KEYS.mlb),
+      asSport(args.sport, SPORT_KEYS.mlb),
       {
         season: asString(args.season),
         startDate: asString(args.startDate),

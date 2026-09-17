@@ -1,12 +1,10 @@
-import type { ChatRole } from '@/api/chat';
+import type { ChatRole, ToolCall } from '@/api/chat';
 import type { TOOL_STATUSES } from '@/constants';
 
 export type ToolStatus = (typeof TOOL_STATUSES)[keyof typeof TOOL_STATUSES];
 
-export interface ToolCallView {
-  id: string;
-  name: string;
-  arguments: Record<string, unknown>;
+/** A tool call from the stream, plus how it is going. */
+export interface ToolCallView extends ToolCall {
   status: ToolStatus;
   /** The tool's text output, once it has come back. */
   result?: string;

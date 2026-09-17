@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { ALIGN, DataTable, type DataTableColumn } from '@/components/DataTable';
 import { DASHBOARD_VIEW_COPY } from '../../DashboardView.constants';
+import { Empty } from '../../DashboardView.styles';
 import { bestValue, formatCell, getPath, toNumber } from '../../DashboardView.utils';
-import { Empty, Winner } from './MetricGrid.styles';
+import { Winner } from './MetricGrid.styles';
 import type { MetricGridProps } from './MetricGrid.types';
 
 interface MetricRow {

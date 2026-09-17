@@ -7,6 +7,12 @@ export interface ToolDefinition {
   parameters: Record<string, unknown>;
 }
 
+/** How many rows a tool returns by default, and the most it will ever return. */
+export interface ToolLimit {
+  default: number;
+  max: number;
+}
+
 export interface ToolResult {
   text: string;
   isError: boolean;

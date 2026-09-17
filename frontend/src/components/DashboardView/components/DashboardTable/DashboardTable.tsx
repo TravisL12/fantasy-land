@@ -1,23 +1,13 @@
 import { useMemo } from 'react';
-import type { DashboardColumn } from '@/api/dashboards';
 import { BUTTON_VARIANTS, Button } from '@/components/Button';
-import { ALIGN, DataTable, type DataTableColumn } from '@/components/DataTable';
+import { ALIGN, DataTable } from '@/components/DataTable';
 import { DASHBOARD_VIEW_COPY } from '../../DashboardView.constants';
 import type { DashboardRow } from '../../DashboardView.types';
-import { formatCell, getPath } from '../../DashboardView.utils';
 import { SELECT_COLUMN_KEY } from './DashboardTable.constants';
 import { useSortedRows } from './DashboardTable.hooks';
 import { Checkbox, Toolbar } from './DashboardTable.styles';
 import type { DashboardTableProps } from './DashboardTable.types';
-
-const toColumn = (column: DashboardColumn): DataTableColumn<DashboardRow> => ({
-  key: column.key,
-  header: column.header,
-  align: column.align ?? (column.format ? ALIGN.right : ALIGN.left),
-  sortable: column.sortable ?? true,
-  highlight: column.highlight,
-  render: ({ data }) => formatCell(getPath(data, column.path), column.format),
-});
+import { toColumn } from './DashboardTable.utils';
 
 export const DashboardTable = ({
   widget,
