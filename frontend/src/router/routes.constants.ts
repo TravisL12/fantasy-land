@@ -12,7 +12,23 @@ export const ROUTES = {
   dashboardEdit: '/dashboards/:dashboardId/edit',
   sports: '/sports',
   sportStats: '/sports/:sport',
+  sportExpectedPoints: '/sports/:sport/expected-points',
+  sportPlayers: '/sports/:sport/players',
+  sportSchedule: '/sports/:sport/schedule',
+  sportStarts: '/sports/:sport/starts',
+  sportMatchups: '/sports/:sport/matchups',
+  sportAvailability: '/sports/:sport/availability',
   playerStats: '/sports/:sport/players/:playerId',
+} as const;
+
+/** The child routes of a sport, as segments under /sports/:sport. */
+export const SPORT_VIEW_SEGMENTS = {
+  expectedPoints: 'expected-points',
+  players: 'players',
+  schedule: 'schedule',
+  starts: 'starts',
+  matchups: 'matchups',
+  availability: 'availability',
 } as const;
 
 const withSearch = (
@@ -29,6 +45,12 @@ const withSearch = (
 
 export const buildSportStatsPath = (sport: string) =>
   generatePath(ROUTES.sportStats, { sport });
+
+/** A sport's view route, e.g. buildSportViewPath('nfl', 'matchups'). */
+export const buildSportViewPath = (sport: string, view?: string) =>
+  view
+    ? `${generatePath(ROUTES.sportStats, { sport })}/${view}`
+    : generatePath(ROUTES.sportStats, { sport });
 
 export const buildPlayerStatsPath = (
   sport: string,

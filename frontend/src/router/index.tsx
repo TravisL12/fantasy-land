@@ -9,9 +9,16 @@ import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { PlayerStatsPage } from '@/pages/PlayerStatsPage';
 import { RegisterPage } from '@/pages/RegisterPage';
+import { SportAvailabilityPage } from '@/pages/SportAvailabilityPage';
+import { SportExpectedPointsPage } from '@/pages/SportExpectedPointsPage';
+import { SportMatchupsPage } from '@/pages/SportMatchupsPage';
+import { SportPage } from '@/pages/SportPage';
+import { SportPlayersPage } from '@/pages/SportPlayersPage';
+import { SportSchedulePage } from '@/pages/SportSchedulePage';
+import { SportStartsPage } from '@/pages/SportStartsPage';
 import { SportStatsPage } from '@/pages/SportStatsPage';
 import { SportsPage } from '@/pages/SportsPage';
-import { ROUTES } from './routes.constants';
+import { ROUTES, SPORT_VIEW_SEGMENTS } from './routes.constants';
 
 export const router = createBrowserRouter([
   {
@@ -55,7 +62,37 @@ export const router = createBrowserRouter([
           },
           { path: ROUTES.dashboard, element: <DashboardPage /> },
           { path: ROUTES.sports, element: <SportsPage /> },
-          { path: ROUTES.sportStats, element: <SportStatsPage /> },
+          {
+            // One catalog fetch, the header and the tabs; the children are the
+            // datasets this sport supports.
+            path: ROUTES.sportStats,
+            element: <SportPage />,
+            children: [
+              { index: true, element: <SportStatsPage /> },
+              {
+                path: SPORT_VIEW_SEGMENTS.expectedPoints,
+                element: <SportExpectedPointsPage />,
+              },
+              {
+                path: SPORT_VIEW_SEGMENTS.players,
+                element: <SportPlayersPage />,
+              },
+              {
+                path: SPORT_VIEW_SEGMENTS.schedule,
+                element: <SportSchedulePage />,
+              },
+              { path: SPORT_VIEW_SEGMENTS.starts, element: <SportStartsPage /> },
+              {
+                path: SPORT_VIEW_SEGMENTS.matchups,
+                element: <SportMatchupsPage />,
+              },
+              {
+                path: SPORT_VIEW_SEGMENTS.availability,
+                element: <SportAvailabilityPage />,
+              },
+            ],
+          },
+          // Outside the tabs: one player, reached from the tables above.
           { path: ROUTES.playerStats, element: <PlayerStatsPage /> },
         ],
       },

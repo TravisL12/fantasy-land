@@ -2,7 +2,13 @@ export const SPORTS_ROUTE = 'sports';
 export const SPORTS_ROUTES = {
   catalog: ':sport',
   stats: ':sport/stats',
+  expectedPoints: ':sport/expected-points',
+  players: ':sport/players',
   playerStats: ':sport/players/:playerId/stats',
+  schedule: ':sport/schedule',
+  starts: ':sport/starts',
+  matchups: ':sport/matchups',
+  availability: ':sport/availability',
 } as const;
 
 export const SPORT_KEYS = { mlb: 'mlb', nfl: 'nfl' } as const;
@@ -139,6 +145,12 @@ export const COMPUTED_SORT_KEYS = {
   name: 'name',
 } as const;
 
+/** Paging for the player directory, which is thousands of rows per sport. */
+export const DIRECTORY_QUERY_DEFAULTS = {
+  limit: 50,
+  maxLimit: 200,
+} as const;
+
 export const STATS_QUERY_DEFAULTS = {
   limit: 50,
   maxLimit: 200,
@@ -173,6 +185,8 @@ export const SPORTS_MESSAGES = {
   noGamesInWindow:
     'No games fall inside that window — widen it or drop the filters.',
   neverMet: 'These teams have no games against each other in that window.',
+  noPlayerDirectory: (sport: string) =>
+    `No player directory for "${sport}" — its upstream publishes no league-wide player list.`,
   noOpportunityData: (sport: string) =>
     `No expected-points model for "${sport}" — the upstream data does not break production down into opportunities. This is only wired up for nfl so far.`,
   noOpportunityGroup: (group: string, groups: string[]) =>

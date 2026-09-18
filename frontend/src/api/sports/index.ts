@@ -1,5 +1,11 @@
 export {
+  useGetAvailabilityQuery,
+  useGetExpectedPointsQuery,
+  useGetMatchupsQuery,
+  useGetPlayerDirectoryQuery,
   useGetPlayerStatsQuery,
+  useGetScheduleQuery,
+  useGetStartsQuery,
   useGetSportStatsQuery,
   useGetSportsQuery,
   useSportCatalog,

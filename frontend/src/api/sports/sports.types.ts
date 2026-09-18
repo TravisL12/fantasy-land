@@ -28,6 +28,13 @@ export interface ScoringPreset {
   rules: Record<string, Record<string, number>>;
 }
 
+/** Which optional datasets a sport's provider supports. */
+export interface SportCapabilities {
+  leagueData: boolean;
+  expectedPoints: boolean;
+  playerDirectory: boolean;
+}
+
 export interface SportCatalog {
   key: SportKey;
   name: string;
@@ -40,6 +47,7 @@ export interface SportCatalog {
   dataKinds: DataKind[];
   groups: StatGroup[];
   scoringPresets: ScoringPreset[];
+  capabilities: SportCapabilities;
 }
 
 export type StatValues = Record<string, number>;
@@ -122,4 +130,181 @@ export interface PlayerStatsResponse {
   entries: GameLogEntry[];
   totals: StatValues;
   summary: PointsSummary;
+}
+
+export type Availability = 'active' | 'injured' | 'minors' | 'inactive';
+export type MatchupSide = 'hitting' | 'pitching';
+export type MatchupGrade = 'great' | 'good' | 'neutral' | 'tough' | 'brutal';
+export type StartConfidence = 'confirmed' | 'projected';
+
+export interface ExpectedPointsModel {
+  position: string;
+  observations: number;
+  rSquared: number;
+  weights: StatValues;
+}
+
+export interface ExpectedPointsRow {
+  player: PlayerRef;
+  gamesPlayed: number;
+  fantasyPoints: number;
+  pointsPerGame: number;
+  expectedPoints: number;
+  expectedPointsPerGame: number;
+  delta: number;
+  deltaPerGame: number;
+  efficiency: number | null;
+  model: string;
+  opportunities: StatValues;
+}
+
+export interface ExpectedPointsQuery {
+  sport: SportKey;
+  season?: string;
+  week?: number;
+  group?: string;
+  scoring?: string;
+  position?: string;
+  sort?: string;
+  order?: SortOrder;
+  minGames?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ExpectedPointsResponse {
+  sport: SportKey;
+  season: string;
+  week: number | null;
+  group: string;
+  scoring: string;
+  models: ExpectedPointsModel[];
+  total: number;
+  rows: ExpectedPointsRow[];
+}
+
+export interface DirectoryPlayer extends PlayerRef {
+  group: string;
+  status: string | null;
+  availability: Availability;
+  rank: number | null;
+}
+
+export interface PlayerDirectoryQuery {
+  sport: SportKey;
+  search?: string;
+  position?: string;
+  team?: string;
+  availability?: Availability[];
+  limit?: number;
+  offset?: number;
+}
+
+export interface PlayerDirectoryResponse {
+  sport: SportKey;
+  total: number;
+  players: DirectoryPlayer[];
+}
+
+export interface MatchupRating {
+  score: number;
+  grade: MatchupGrade;
+  metrics: { key: string; label: string; value: number; rank: number }[];
+}
+
+export interface MatchupsQuery {
+  sport: SportKey;
+  season?: string;
+  side?: MatchupSide;
+}
+
+export interface MatchupsResponse {
+  sport: SportKey;
+  season: string;
+  side: MatchupSide;
+  teams: ({ team: string } & MatchupRating)[];
+}
+
+export interface DateWindowQuery {
+  sport: SportKey;
+  season?: string;
+  startDate?: string;
+  endDate?: string;
+  days?: number;
+}
+
+export interface ProbableStarter extends PlayerRef {
+  playerId: string;
+  opponent: string;
+  isHome: boolean;
+  matchup: MatchupRating | null;
+}
+
+export interface ScheduledGame {
+  gameId: string;
+  date: string;
+  status: string;
+  home: string;
+  away: string;
+  probables: {
+    home: ProbableStarter | null;
+    away: ProbableStarter | null;
+  };
+  score: { home: number; away: number } | null;
+}
+
+export interface ScheduleResponse {
+  sport: SportKey;
+  season: string;
+  startDate: string;
+  endDate: string;
+  games: ScheduledGame[];
+}
+
+export interface ProjectedStart {
+  date: string;
+  opponent: string;
+  isHome: boolean;
+  confidence: StartConfidence;
+  matchup?: MatchupRating;
+}
+
+export interface StartsReport {
+  player: PlayerRef;
+  starts: ProjectedStart[];
+  confirmedStarts: number;
+  matchupScore: number | null;
+}
+
+export interface StartsResponse {
+  sport: SportKey;
+  season: string;
+  startDate: string;
+  endDate: string;
+  coverage: string;
+  coverageNote: string;
+  pitchers: StartsReport[];
+}
+
+export interface PlayerStatus {
+  playerId: string;
+  name: string;
+  team: string | null;
+  position: string | null;
+  status: string;
+  availability: Availability;
+}
+
+export interface AvailabilityQuery {
+  sport: SportKey;
+  season?: string;
+  availability?: Availability[];
+  team?: string;
+  search?: string;
+}
+
+export interface AvailabilityResponse {
+  sport: SportKey;
+  season: string;
+  players: PlayerStatus[];
 }

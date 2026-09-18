@@ -1,9 +1,20 @@
 import { baseApi } from '@/api/baseApi';
 import type {
+  AvailabilityQuery,
+  AvailabilityResponse,
+  DateWindowQuery,
+  ExpectedPointsQuery,
+  ExpectedPointsResponse,
+  MatchupsQuery,
+  MatchupsResponse,
+  PlayerDirectoryQuery,
+  PlayerDirectoryResponse,
   PlayerStatsQuery,
   PlayerStatsResponse,
+  ScheduleResponse,
   SportCatalog,
   SportKey,
+  StartsResponse,
   StatsQuery,
   StatsResponse,
 } from './sports.types';
@@ -25,6 +36,42 @@ export const sportsApi = baseApi.injectEndpoints({
         params,
       }),
     }),
+    getExpectedPoints: build.query<ExpectedPointsResponse, ExpectedPointsQuery>({
+      query: ({ sport, ...params }) => ({
+        url: `/sports/${sport}/expected-points`,
+        params,
+      }),
+    }),
+    getPlayerDirectory: build.query<
+      PlayerDirectoryResponse,
+      PlayerDirectoryQuery
+    >({
+      query: ({ sport, ...params }) => ({
+        url: `/sports/${sport}/players`,
+        params,
+      }),
+    }),
+    getSchedule: build.query<ScheduleResponse, DateWindowQuery>({
+      query: ({ sport, ...params }) => ({
+        url: `/sports/${sport}/schedule`,
+        params,
+      }),
+    }),
+    getStarts: build.query<StartsResponse, DateWindowQuery>({
+      query: ({ sport, ...params }) => ({ url: `/sports/${sport}/starts`, params }),
+    }),
+    getMatchups: build.query<MatchupsResponse, MatchupsQuery>({
+      query: ({ sport, ...params }) => ({
+        url: `/sports/${sport}/matchups`,
+        params,
+      }),
+    }),
+    getAvailability: build.query<AvailabilityResponse, AvailabilityQuery>({
+      query: ({ sport, ...params }) => ({
+        url: `/sports/${sport}/availability`,
+        params,
+      }),
+    }),
   }),
 });
 
@@ -32,6 +79,12 @@ export const {
   useGetSportsQuery,
   useGetSportStatsQuery,
   useGetPlayerStatsQuery,
+  useGetExpectedPointsQuery,
+  useGetPlayerDirectoryQuery,
+  useGetScheduleQuery,
+  useGetStartsQuery,
+  useGetMatchupsQuery,
+  useGetAvailabilityQuery,
 } = sportsApi;
 
 /** One sport's catalog, read from the shared sports list cache. */

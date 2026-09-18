@@ -1,37 +1,21 @@
-import { useParams } from 'react-router';
-import {
-  type SportCatalog,
-  useGetSportStatsQuery,
-  useSportCatalog,
-} from '@/api/sports';
-import { PageHeader } from '@/components/PageHeader';
+import { type SportCatalog, useGetSportStatsQuery } from '@/api/sports';
+import { Pagination } from '@/components/Pagination';
 import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
 import { useStatColumns } from '@/hooks';
+import { useSportContext } from '@/pages/SportPage';
 import { getApiErrorMessage } from '@/utils';
-import { Pagination } from './components/Pagination';
+
 import { StatColumnPicker } from './components/StatColumnPicker';
 import { StatsTable } from './components/StatsTable';
 import { StatsToolbar } from './components/StatsToolbar';
-import { PAGE_SIZE, SPORT_STATS_COPY } from './SportStatsPage.constants';
+import { PAGE_SIZE } from './SportStatsPage.constants';
 import { useStatsFilters } from './SportStatsPage.hooks';
 import { Layout } from './SportStatsPage.styles';
 
+/** The leaderboard view: the sport layout owns the header, tabs and catalog. */
 export const SportStatsPage = () => {
-  const { sport } = useParams();
-  const { catalog, isLoading, isError } = useSportCatalog(sport);
-
-  if (isLoading)
-    return <StatusMessage>{SPORT_STATS_COPY.loading}</StatusMessage>;
-  if (isError || !catalog) {
-    return (
-      <PageHeader
-        title={SPORT_STATS_COPY.notFound}
-        back={SPORT_STATS_COPY.back}
-      />
-    );
-  }
-  // Keyed so switching sports resets any per-sport local state.
-  return <SportStatsExplorer key={catalog.key} catalog={catalog} />;
+  const { catalog } = useSportContext();
+  return <SportStatsExplorer catalog={catalog} />;
 };
 
 const SportStatsExplorer = ({ catalog }: { catalog: SportCatalog }) => {
@@ -58,11 +42,6 @@ const SportStatsExplorer = ({ catalog }: { catalog: SportCatalog }) => {
 
   return (
     <Layout>
-      <PageHeader
-        title={SPORT_STATS_COPY.title(catalog.league)}
-        subtitle={SPORT_STATS_COPY.subtitle(catalog.dataSource.name)}
-        back={SPORT_STATS_COPY.back}
-      />
       <StatsToolbar
         catalog={catalog}
         filters={filters}

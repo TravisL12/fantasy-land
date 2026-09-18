@@ -25,6 +25,7 @@ import {
 import {
   COMPUTED_SORT_KEYS,
   DATA_KINDS,
+  DIRECTORY_QUERY_DEFAULTS,
   EXPECTED_POINTS_DEFAULTS,
   EXPECTED_SORT_KEYS,
   FORM_DEFAULTS,
@@ -42,6 +43,7 @@ import type {
   DataKind,
   DateRange,
   DirectoryPlayer,
+  SportCatalogView,
   ExpectedPointsLine,
   ExpectedPointsModel,
   FormReport,
@@ -89,12 +91,30 @@ export class SportsService {
     this.providers = new Map(providers.map((p) => [p.key, p]));
   }
 
-  getCatalogs(): Promise<SportCatalog[]> {
-    return Promise.all([...this.providers.values()].map((p) => p.getCatalog()));
+  getCatalogs(): Promise<SportCatalogView[]> {
+    return Promise.all(
+      [...this.providers.values()].map((provider) => this.describe(provider)),
+    );
   }
 
-  getCatalog(sport: SportKey): Promise<SportCatalog> {
-    return this.provider(sport).getCatalog();
+  getCatalog(sport: SportKey): Promise<SportCatalogView> {
+    return this.describe(this.provider(sport));
+  }
+
+  /**
+   * A catalog plus the optional capabilities its provider implements. Clients
+   * ask what a sport supports rather than carrying a list of which sports are
+   * wired up for what, which goes stale the moment a provider gains a method.
+   */
+  private async describe(provider: SportProvider): Promise<SportCatalogView> {
+    return {
+      ...(await provider.getCatalog()),
+      capabilities: {
+        leagueData: providesLeagueData(provider),
+        expectedPoints: providesOpportunityStats(provider),
+        playerDirectory: providesPlayerDirectory(provider),
+      },
+    };
   }
 
   /**
@@ -332,6 +352,65 @@ export class SportsService {
     if (!providesPlayerDirectory(provider)) return [];
 
     return matchPlayers(await provider.getPlayerDirectory(), query, limit);
+  }
+
+  /**
+   * The directory as a browsable, paged list. A search is ranked by how well
+   * the name matches; without one the order is upstream's own relevance, so
+   * the first page is the players anyone would actually ask about rather than
+   * whoever the alphabet puts first.
+   */
+  async getPlayerDirectory(
+    sport: SportKey,
+    query: {
+      search?: string;
+      position?: string;
+      team?: string;
+      availability?: string[];
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{
+    sport: SportKey;
+    total: number;
+    players: DirectoryPlayer[];
+  }> {
+    const provider = this.provider(sport);
+    if (!providesPlayerDirectory(provider)) {
+      throw new BadRequestException(SPORTS_MESSAGES.noPlayerDirectory(sport));
+    }
+
+    const all = await provider.getPlayerDirectory();
+    const position = query.position?.toUpperCase();
+    const team = query.team?.toUpperCase();
+    const availability = query.availability?.length
+      ? new Set(query.availability)
+      : null;
+
+    const filtered = all.filter(
+      (player) =>
+        (!position || player.position === position) &&
+        (!team || player.team === team) &&
+        (!availability || availability.has(player.availability)),
+    );
+
+    const search = query.search?.trim();
+    const ordered = search
+      ? matchPlayers(filtered, search, filtered.length)
+      : [...filtered].sort(
+          (a, b) =>
+            (a.rank ?? Infinity) - (b.rank ?? Infinity) ||
+            a.name.localeCompare(b.name),
+        );
+
+    const offset = query.offset ?? 0;
+    const limit = query.limit ?? DIRECTORY_QUERY_DEFAULTS.limit;
+
+    return {
+      sport,
+      total: ordered.length,
+      players: ordered.slice(offset, offset + limit),
+    };
   }
 
   /** Games in a window, with each announced starter's matchup rated. */

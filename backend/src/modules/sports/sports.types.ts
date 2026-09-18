@@ -46,6 +46,17 @@ export interface ScoringPreset {
   rules: Record<string, ScoringRules>;
 }
 
+/**
+ * Which optional provider capabilities a sport has, so a client can offer the
+ * views that exist rather than hardcoding "this bit is baseball only".
+ */
+export interface SportCapabilities {
+  /** Schedule, matchup ratings, projected starts, roster availability. */
+  leagueData: boolean;
+  expectedPoints: boolean;
+  playerDirectory: boolean;
+}
+
 export interface SportCatalog {
   key: SportKey;
   name: string;
@@ -59,6 +70,11 @@ export interface SportCatalog {
   groups: StatGroup[];
   scoringPresets: ScoringPreset[];
 }
+
+/** A catalog as served over HTTP: the sport's own data plus what it supports. */
+export type SportCatalogView = SportCatalog & {
+  capabilities: SportCapabilities;
+};
 
 export type StatValues = Record<string, number>;
 

@@ -1,5 +1,12 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { PlayerStatsQueryDto } from './dto/player-stats-query.dto.js';
+import {
+  AvailabilityQueryDto,
+  DateWindowQueryDto,
+  ExpectedPointsQueryDto,
+  MatchupsQueryDto,
+  PlayerDirectoryQueryDto,
+} from './dto/sport-views-query.dto.js';
 import { PlayerParamsDto, SportParamsDto } from './dto/sport-params.dto.js';
 import { StatsQueryDto } from './dto/stats-query.dto.js';
 import type {
@@ -32,6 +39,59 @@ export class SportsController {
     @Query() query: StatsQueryDto,
   ): Promise<StatsResponseDto> {
     return this.sportsService.getStats(sport, query);
+  }
+
+  /**
+   * Everything below is the same data the chat tools read, served straight to
+   * the UI. A view a sport does not support answers with the service's own
+   * "not wired up for this sport" message rather than an empty page.
+   */
+  @Get(SPORTS_ROUTES.expectedPoints)
+  expectedPoints(
+    @Param() { sport }: SportParamsDto,
+    @Query() query: ExpectedPointsQueryDto,
+  ) {
+    return this.sportsService.getExpectedPoints(sport, query);
+  }
+
+  @Get(SPORTS_ROUTES.players)
+  players(
+    @Param() { sport }: SportParamsDto,
+    @Query() query: PlayerDirectoryQueryDto,
+  ) {
+    return this.sportsService.getPlayerDirectory(sport, query);
+  }
+
+  @Get(SPORTS_ROUTES.schedule)
+  schedule(
+    @Param() { sport }: SportParamsDto,
+    @Query() query: DateWindowQueryDto,
+  ) {
+    return this.sportsService.getSchedule(sport, query);
+  }
+
+  @Get(SPORTS_ROUTES.starts)
+  starts(
+    @Param() { sport }: SportParamsDto,
+    @Query() query: DateWindowQueryDto,
+  ) {
+    return this.sportsService.getStarts(sport, query);
+  }
+
+  @Get(SPORTS_ROUTES.matchups)
+  matchups(
+    @Param() { sport }: SportParamsDto,
+    @Query() { side, season }: MatchupsQueryDto,
+  ) {
+    return this.sportsService.getMatchupBoard(sport, side, season);
+  }
+
+  @Get(SPORTS_ROUTES.availability)
+  availability(
+    @Param() { sport }: SportParamsDto,
+    @Query() query: AvailabilityQueryDto,
+  ) {
+    return this.sportsService.getPlayerStatuses(sport, query);
   }
 
   @Get(SPORTS_ROUTES.playerStats)

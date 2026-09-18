@@ -52,7 +52,7 @@ const solve = (observations: Observation[], size: number, ridge: number) => {
   const xtx = Array.from({ length: size }, (_, i) =>
     Array.from({ length: size }, (_, j) => (i === j ? ridge : 0)),
   );
-  const xty = new Array<number>(size).fill(0);
+  const xty = Array.from({ length: size }, () => 0);
 
   for (const { features, target, weight } of observations) {
     for (let i = 0; i < size; i += 1) {
@@ -120,7 +120,7 @@ const fitNonNegative = (
 
     const kept = active.filter((_, i) => solved[i] > 0);
     if (kept.length === active.length) {
-      const weights = new Array<number>(size).fill(0);
+      const weights = Array.from({ length: size }, () => 0);
       active.forEach((feature, i) => {
         weights[feature] = solved[i];
       });
@@ -129,7 +129,7 @@ const fitNonNegative = (
     active = kept;
   }
 
-  return new Array<number>(size).fill(0);
+  return Array.from({ length: size }, () => 0);
 };
 
 /** Weighted R² against the population mean, so 0 means "no better than average". */

@@ -1,0 +1,1 @@
+export { SportMatchupsPage } from './SportMatchupsPage';
