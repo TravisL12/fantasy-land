@@ -7,6 +7,7 @@ export const ROUTES = {
   chat: '/chat',
   dashboards: '/dashboards',
   dashboardCreate: '/dashboards/create',
+  dashboardExamples: '/dashboards/examples',
   dashboard: '/dashboards/:dashboardId',
   sports: '/sports',
   sportStats: '/sports/:sport',

@@ -4,6 +4,7 @@ import {
   type Dashboard,
 } from '@/api/dashboards';
 import { Button } from '@/components/Button';
+import { HeaderLink } from '@/components/HeaderLink';
 import { PageHeader } from '@/components/PageHeader';
 import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
 import { ROUTES } from '@/router/routes.constants';
@@ -29,6 +30,11 @@ export const DashboardsPage = () => {
       <PageHeader
         title={DASHBOARDS_COPY.heading}
         subtitle={DASHBOARDS_COPY.subheading}
+        actions={
+          <HeaderLink to={ROUTES.dashboardExamples}>
+            {DASHBOARDS_COPY.examples}
+          </HeaderLink>
+        }
       />
       <Actions>
         <Button onClick={() => void navigate(ROUTES.dashboardCreate)}>

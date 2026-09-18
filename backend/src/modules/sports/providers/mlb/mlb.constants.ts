@@ -31,6 +31,12 @@ export const MLB_PITCHER_ROLES = { starter: 'SP', reliever: 'RP' } as const;
 /** A pitcher counts as a starter when at least this share of appearances were starts. */
 export const MLB_STARTER_SHARE = 0.5;
 
+/**
+ * Names a box score uses that a stat's own key, label and abbreviation miss —
+ * "SO" for strikeouts is the one that matters, since ours is "K".
+ */
+export const MLB_STAT_ALIASES = { strikeOuts: ['SO'] } as const;
+
 /** Stats the API doesn't return but we derive, e.g. singles for points scoring. */
 export const MLB_DERIVED_STATS = { singles: 'singles' } as const;
 
@@ -52,6 +58,7 @@ export const MLB_GROUPS: StatGroup[] = [
       defineStat('baseOnBalls', 'Walks', 'BB'),
       defineStat('strikeOuts', 'Strikeouts', 'K', undefined, {
         lowerIsBetter: true,
+        aliases: MLB_STAT_ALIASES.strikeOuts,
       }),
       defineStat('stolenBases', 'Stolen bases', 'SB'),
       defineStat('caughtStealing', 'Caught stealing', 'CS', undefined, {
@@ -91,7 +98,9 @@ export const MLB_GROUPS: StatGroup[] = [
       defineStat('blownSaves', 'Blown saves', 'BS', undefined, {
         lowerIsBetter: true,
       }),
-      defineStat('strikeOuts', 'Strikeouts', 'K'),
+      defineStat('strikeOuts', 'Strikeouts', 'K', undefined, {
+        aliases: MLB_STAT_ALIASES.strikeOuts,
+      }),
       defineStat('baseOnBalls', 'Walks', 'BB', undefined, {
         lowerIsBetter: true,
       }),

@@ -4,6 +4,7 @@ import { MessageBubble } from '@/components/MessageBubble';
 import { PageHeader } from '@/components/PageHeader';
 import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
 import { Button } from '@/components/Button';
+import { HeaderLink } from '@/components/HeaderLink';
 import { ROUTES } from '@/router/routes.constants';
 import { CREATE_COPY, SUGGESTIONS } from './DashboardCreatePage.constants';
 import { useDashboardBuilder } from './DashboardCreatePage.hooks';
@@ -36,6 +37,11 @@ export const DashboardCreatePage = () => {
         title={CREATE_COPY.heading}
         subtitle={CREATE_COPY.subheading}
         back={{ to: ROUTES.dashboards, label: CREATE_COPY.back }}
+        actions={
+          <HeaderLink to={ROUTES.dashboardExamples}>
+            {CREATE_COPY.examples}
+          </HeaderLink>
+        }
       />
 
       <Split>

@@ -37,6 +37,14 @@ export const router = createBrowserRouter([
                 .DashboardCreatePage,
             }),
           },
+          {
+            path: ROUTES.dashboardExamples,
+            // Split out: the guide carries its own sample data and is read once.
+            lazy: async () => ({
+              Component: (await import('@/pages/DashboardExamplesPage'))
+                .DashboardExamplesPage,
+            }),
+          },
           { path: ROUTES.dashboard, element: <DashboardPage /> },
           { path: ROUTES.sports, element: <SportsPage /> },
           { path: ROUTES.sportStats, element: <SportStatsPage /> },

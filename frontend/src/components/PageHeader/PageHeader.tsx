@@ -1,15 +1,18 @@
 import { BACK_ARROW } from './PageHeader.constants';
-import { BackLink, Header, Subtitle, Title } from './PageHeader.styles';
+import { BackLink, Header, Subtitle, Title, TitleRow } from './PageHeader.styles';
 import type { PageHeaderProps } from './PageHeader.types';
 
-export const PageHeader = ({ title, subtitle, back }: PageHeaderProps) => (
+export const PageHeader = ({ title, subtitle, back, actions }: PageHeaderProps) => (
   <Header>
     {back && (
       <BackLink to={back.to}>
         {BACK_ARROW} {back.label}
       </BackLink>
     )}
-    <Title>{title}</Title>
+    <TitleRow>
+      <Title>{title}</Title>
+      {actions}
+    </TitleRow>
     {subtitle && <Subtitle>{subtitle}</Subtitle>}
   </Header>
 );

@@ -61,15 +61,20 @@ const playerStatsResponse: PlayerStatsResponseDto = {
   },
 };
 
+const RECEIVING = [
+  { key: 'rec', label: 'Receptions', abbr: 'REC' },
+  { key: 'rec_yd', label: 'Receiving yards', abbr: 'REC YD' },
+];
+
 const sportsStub = (
   groups: {
     key: string;
-    stats?: { key: string }[];
+    stats?: { key: string; label?: string; abbr?: string }[];
     defaultStats?: string[];
   }[] = [
     {
       key: 'offense',
-      stats: [{ key: 'rec' }, { key: 'rec_yd' }],
+      stats: RECEIVING,
       defaultStats: ['rec', 'rec_yd'],
     },
   ],
@@ -300,6 +305,25 @@ describe('sports tools', () => {
       expect(vi.mocked(sports.getStats)).toHaveBeenCalledTimes(2);
     });
 
+    // A model writes the stat the way it reads, not the way upstream spells it.
+    it('sorts by a loosely named stat, passing the real key on', async () => {
+      const sports = sportsStub();
+
+      await new LeaderboardTool(sports).execute({ sort: 'receiving yards' });
+      await new LeaderboardTool(sports).execute({ sort: 'fantasy_points' });
+
+      expect(vi.mocked(sports.getStats)).toHaveBeenNthCalledWith(
+        1,
+        'nfl',
+        expect.objectContaining({ sort: 'rec_yd' }),
+      );
+      expect(vi.mocked(sports.getStats)).toHaveBeenNthCalledWith(
+        2,
+        'nfl',
+        expect.objectContaining({ sort: 'fantasyPoints' }),
+      );
+    });
+
     it('returns only the group\'s headline stats to a chat turn', async () => {
       const sports = sportsStub([
         {
@@ -331,6 +355,26 @@ describe('sports tools', () => {
       )) as { rows: { stats: Record<string, number> }[] };
 
       expect(result.rows[0].stats).toEqual({ rec: 25, rec_yd: 293 });
+    });
+
+    it('keeps a loosely named stat filter, under the real key', async () => {
+      const sports = sportsStub([
+        { key: 'offense', stats: RECEIVING, defaultStats: ['rec'] },
+      ]);
+
+      const result = (await new LeaderboardTool(sports).execute({
+        stats: ['REC YD'],
+      })) as { rows: { stats: Record<string, number> }[] };
+
+      expect(result.rows[0].stats).toEqual({ rec_yd: 293 });
+    });
+
+    it('still names the valid keys when a stat resolves to nothing', async () => {
+      const sports = sportsStub();
+
+      await expect(
+        new LeaderboardTool(sports).execute({ stats: ['strikeouts'] }),
+      ).rejects.toThrow(/Valid keys: rec, rec_yd/);
     });
 
     // A top ten by receiving yards with no receiving yards in it is unusable.

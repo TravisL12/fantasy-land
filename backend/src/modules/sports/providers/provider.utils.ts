@@ -11,7 +11,11 @@ export const defineStat = (
   label: string,
   abbr: string,
   format: StatFormat = STAT_FORMATS.int,
-  options: { summable?: boolean; lowerIsBetter?: boolean } = {},
+  options: {
+    summable?: boolean;
+    lowerIsBetter?: boolean;
+    aliases?: readonly string[];
+  } = {},
 ): StatDefinition => ({
   key,
   label,
@@ -19,6 +23,7 @@ export const defineStat = (
   format,
   summable: options.summable ?? format === STAT_FORMATS.int,
   ...(options.lowerIsBetter && { lowerIsBetter: true }),
+  ...(options.aliases && { aliases: options.aliases }),
 });
 
 /** Newest first, e.g. seasonRange(2024, 2026) → ['2026', '2025', '2024']. */

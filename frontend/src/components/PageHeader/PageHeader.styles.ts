@@ -19,6 +19,15 @@ export const BackLink = styled(Link)`
   }
 `;
 
+/** The title and its actions share a line; the actions wrap under it when tight. */
+export const TitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing(3)};
+`;
+
 export const Title = styled.h1`
   margin: 0;
 `;

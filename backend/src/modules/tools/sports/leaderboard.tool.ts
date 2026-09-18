@@ -6,6 +6,7 @@ import {
   SORT_ORDERS,
 } from '../../sports/sports.constants.js';
 import type { SportCatalog, StatGroup } from '../../sports/sports.types.js';
+import { matchKey, resolveStatKey } from '../../sports/sports.utils.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
 import type {
   FantasyTool,
@@ -81,15 +82,9 @@ export class LeaderboardTool implements FantasyTool {
   async execute(args: Record<string, unknown>, context?: ToolContext) {
     const sport = asSport(args.sport);
     const groupKey = asString(args.group);
-    const sort = asString(args.sort);
     const catalog = await this.sports.getCatalog(sport);
     const group = resolveGroup(catalog, groupKey);
-
-    if (sort) {
-      // Sorting by a key the group does not define quietly falls back to
-      // alphabetical order, which looks like a real ranking. Say so instead.
-      assertSortable(group, sort);
-    }
+    const sort = resolveSort(group, asString(args.sort));
 
     // The column a ranking was built on always comes back, whatever the stat
     // filter says — a top-ten by home runs with no home runs in it is unusable.
@@ -134,16 +129,30 @@ export class LeaderboardTool implements FantasyTool {
   }
 }
 
-const resolveGroup = (catalog: SportCatalog, groupKey: string | undefined) =>
-  catalog.groups.find(({ key }) => key === groupKey) ?? catalog.groups[0];
+/** Matched the way the service will match it, so the stat filter agrees. */
+const resolveGroup = (catalog: SportCatalog, groupKey: string | undefined) => {
+  const keys = catalog.groups.map(({ key }) => key);
+  const match = groupKey && matchKey(keys, groupKey);
+  return catalog.groups.find(({ key }) => key === match) ?? catalog.groups[0];
+};
 
-const assertSortable = (group: StatGroup | undefined, sort: string) => {
-  if (!group) return;
+/**
+ * The canonical spelling of what to rank by. Sorting by a key the group does
+ * not define quietly falls back to alphabetical order, which looks like a real
+ * ranking, so a name that resolves to nothing is rejected with the ones that
+ * work.
+ */
+const resolveSort = (
+  group: StatGroup | undefined,
+  sort: string | undefined,
+) => {
+  if (!sort || !group) return sort;
 
   const computed = Object.values(COMPUTED_SORT_KEYS);
-  const stats = group.stats.map(({ key }) => key);
-  if ([...computed, ...stats].includes(sort)) return;
+  const resolved = matchKey(computed, sort) ?? resolveStatKey(group, sort);
+  if (resolved) return resolved;
 
+  const stats = group.stats.map(({ key }) => key);
   throw new BadRequestException(
     SPORTS_TOOL_MESSAGES.unknownSort(sort, group.key, [...computed, ...stats]),
   );

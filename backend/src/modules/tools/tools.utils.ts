@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { clamp } from '../../common/math/number.js';
 import { SPORT_KEYS } from '../sports/sports.constants.js';
 import type { SportKey, StatGroup } from '../sports/sports.types.js';
+import { resolveStatKey } from '../sports/sports.utils.js';
 import { TOOL_MESSAGES } from './tools.constants.js';
 import type { ToolLimit } from './tools.types.js';
 
@@ -106,6 +107,10 @@ export const asFlag = (value: unknown): boolean =>
  * `extra` is for keys the answer would be wrong without — the leaderboard's
  * sort key above all, since a ranking whose column is missing reads as
  * arbitrary. Returns undefined when nothing should be filtered out.
+ *
+ * Requested keys go through `resolveStatKey`, so a model that writes
+ * "strikeouts" for `strikeOuts` gets the column rather than an error it has to
+ * spend a round recovering from.
  */
 export const resolveStatKeys = (
   group: StatGroup | undefined,
@@ -113,18 +118,19 @@ export const resolveStatKeys = (
   { full = false, extra = [] }: { full?: boolean; extra?: (string | undefined)[] } = {},
 ): Set<string> | undefined => {
   const asked = asStringArray(requested);
-  const defined = group?.stats.map(({ key }) => key) ?? [];
 
   if (asked.length) {
-    const unknown = defined.length
-      ? asked.filter((key) => !defined.includes(key))
-      : [];
+    if (!group) return new Set([...asked, ...keep(extra)]);
+
+    const resolved = asked.map((key) => resolveStatKey(group, key));
+    const unknown = asked.filter((_, index) => !resolved[index]);
     if (unknown.length) {
+      const defined = group.stats.map(({ key }) => key);
       throw new BadRequestException(
-        TOOL_MESSAGES.unknownStats(unknown, group?.key ?? '', defined),
+        TOOL_MESSAGES.unknownStats(unknown, group.key, defined),
       );
     }
-    return new Set([...asked, ...keep(extra)]);
+    return new Set([...keep(resolved), ...keep(extra)]);
   }
 
   if (full || !group) return undefined;

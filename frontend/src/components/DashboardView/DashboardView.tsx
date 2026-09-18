@@ -39,8 +39,8 @@ import {
  * ticking rows, comparing — happens here in the browser, so a dashboard only
  * goes back to the API when it is opened or refreshed.
  */
-export const DashboardView = ({ spec, actions }: DashboardViewProps) => {
-  const { run, isFetching, error, refresh } = useDashboardRun(spec);
+export const DashboardView = ({ spec, actions, sample }: DashboardViewProps) => {
+  const { run, isFetching, error, refresh } = useDashboardRun(spec, sample);
   const [selection, setSelection] = useState<Selection>({});
 
   const rowsByTable = useMemo(() => resolveTableRows(spec, run), [spec, run]);
@@ -149,17 +149,28 @@ export const DashboardView = ({ spec, actions }: DashboardViewProps) => {
     <Shell>
       {spec.description && <Description>{spec.description}</Description>}
 
-      <Toolbar>
-        <Button onClick={refresh} disabled={isFetching}>
-          {isFetching ? DASHBOARD_VIEW_COPY.refreshing : DASHBOARD_VIEW_COPY.refresh}
-        </Button>
-        {run && (
-          <Updated>
-            {DASHBOARD_VIEW_COPY.updated(new Date(run.ranAt).toLocaleTimeString())}
-          </Updated>
-        )}
-        {actions}
-      </Toolbar>
+      {/* Sample data has nothing to re-fetch, so it gets no refresh control. */}
+      {(!sample || actions) && (
+        <Toolbar>
+          {!sample && (
+            <>
+              <Button onClick={refresh} disabled={isFetching}>
+                {isFetching
+                  ? DASHBOARD_VIEW_COPY.refreshing
+                  : DASHBOARD_VIEW_COPY.refresh}
+              </Button>
+              {run && (
+                <Updated>
+                  {DASHBOARD_VIEW_COPY.updated(
+                    new Date(run.ranAt).toLocaleTimeString(),
+                  )}
+                </Updated>
+              )}
+            </>
+          )}
+          {actions}
+        </Toolbar>
+      )}
 
       {error && (
         <StatusMessage variant={STATUS_VARIANTS.error}>{error}</StatusMessage>

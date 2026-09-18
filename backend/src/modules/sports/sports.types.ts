@@ -22,6 +22,8 @@ export interface StatDefinition {
   label: string;
   abbr: string;
   format: StatFormat;
+  /** Extra names a caller may use for this stat, beyond key, label and abbr. */
+  aliases?: readonly string[];
   /** Whether per-game values can be added up into a total (false for rates like AVG). */
   summable: boolean;
   lowerIsBetter?: boolean;

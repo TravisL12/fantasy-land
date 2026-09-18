@@ -4,7 +4,12 @@ import {
   SCHEDULE_DEFAULTS,
   SPORTS_MESSAGES,
 } from './sports.constants.js';
-import type { LeagueDataProvider, SportProvider } from './sports.types.js';
+import type {
+  LeagueDataProvider,
+  SportProvider,
+  StatDefinition,
+  StatGroup,
+} from './sports.types.js';
 
 /** Narrows a provider to the optional schedule/strength/availability capability. */
 export const providesLeagueData = (
@@ -70,4 +75,71 @@ export const resolveDateRange = (
     );
   }
   return { startDate: start, endDate: end };
+};
+
+/**
+ * A key as the model wrote it, flattened to just its letters and digits, so
+ * "strikeOuts", "strikeouts", "strike_outs" and "Strike Outs" are one token.
+ */
+export const flattenKey = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/** The canonical spelling of `requested`, or undefined if it names nothing. */
+export const matchKey = (keys: readonly string[], requested: string) =>
+  keys.find((key) => key === requested) ??
+  keys.find((key) => flattenKey(key) === flattenKey(requested));
+
+/**
+ * Stat keys come from upstream, so they read like `strikeOuts`, `rec_yd` or
+ * `pts_allow_35p`. A model asked about strikeouts writes the English word and
+ * the lookup fails on capitalisation alone. Every name a stat already carries
+ * — key, aliases, abbreviation, label — is indexed flattened, so "strikeouts",
+ * "SO" and "K" all land on `strikeOuts`, and "receiving yards" on `rec_yd`.
+ *
+ * A token two stats in the group would both claim is dropped rather than
+ * guessed at: an ambiguous name falls through to the usual "valid keys" error.
+ */
+export const resolveStatKey = (
+  group: StatGroup,
+  requested: string,
+): string | undefined =>
+  group.stats.find(({ key }) => key === requested)?.key ??
+  statKeyIndex(group).get(flattenKey(requested)) ??
+  undefined;
+
+/** Flattened name → canonical key, or null where the name is ambiguous. */
+type StatKeyIndex = Map<string, string | null>;
+
+const statKeyIndexes = new WeakMap<StatGroup, StatKeyIndex>();
+
+/** Weakest name first: a later source overwrites an earlier one, so a stat's
+ * own key always beats another stat's label. */
+const STAT_NAMES: ((stat: StatDefinition) => readonly (string | undefined)[])[] =
+  [
+    ({ label }) => [label],
+    ({ abbr }) => [abbr],
+    ({ aliases }) => aliases ?? [],
+    ({ key }) => [key],
+  ];
+
+const statKeyIndex = (group: StatGroup) => {
+  const cached = statKeyIndexes.get(group);
+  if (cached) return cached;
+
+  const index: StatKeyIndex = new Map();
+  for (const names of STAT_NAMES) {
+    const source: StatKeyIndex = new Map();
+    for (const stat of group.stats) {
+      for (const name of names(stat)) {
+        const token = name && flattenKey(name);
+        if (!token) continue;
+        const claimed = source.get(token);
+        source.set(token, claimed && claimed !== stat.key ? null : stat.key);
+      }
+    }
+    for (const [token, key] of source) index.set(token, key);
+  }
+
+  statKeyIndexes.set(group, index);
+  return index;
 };

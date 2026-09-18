@@ -4,6 +4,7 @@ export const CREATE_COPY = {
     'Describe the view you want. The model looks the data up, designs the widgets, and the result appears on the right — sort it, tick rows, then save it.',
   placeholder: 'e.g. a table of the top 30 MLB hitters this season with HR, AVG and points…',
   back: 'Dashboards',
+  examples: 'See an example',
   save: 'Save dashboard',
   saving: 'Saving…',
   preview: 'Preview',

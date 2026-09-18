@@ -57,6 +57,7 @@ import type {
 } from './sports.types.js';
 import {
   assertRange,
+  matchKey,
   providesLeagueData,
   resolveDateRange,
 } from './sports.utils.js';
@@ -716,9 +717,11 @@ const teamSchedules = (games: ScheduledGame[]) => {
   return byTeam;
 };
 
+/** Group and preset keys match loosely, so "Pitching" still finds "pitching". */
 const resolveGroup = (catalog: SportCatalog, key?: string) => {
+  const match = key && matchKey(catalog.groups.map((g) => g.key), key);
   const group = key
-    ? catalog.groups.find((g) => g.key === key)
+    ? catalog.groups.find((g) => g.key === match)
     : catalog.groups[0];
   if (!group)
     throw new BadRequestException(SPORTS_MESSAGES.unknownGroup(key ?? ''));
@@ -737,8 +740,10 @@ const resolveTeam = (team: string, known: string[]) => {
 };
 
 const resolveScoring = (catalog: SportCatalog, key?: string) => {
+  const keys = catalog.scoringPresets.map((p) => p.key);
+  const match = key && matchKey(keys, key);
   const preset = key
-    ? catalog.scoringPresets.find((p) => p.key === key)
+    ? catalog.scoringPresets.find((p) => p.key === match)
     : catalog.scoringPresets[0];
   if (!preset)
     throw new BadRequestException(SPORTS_MESSAGES.unknownScoring(key ?? ''));
