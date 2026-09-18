@@ -22,9 +22,25 @@ export interface OllamaTool {
   };
 }
 
-export interface OllamaChatChunk {
+/** Ollama reports its own timings on the final chunk of a response. */
+export interface OllamaTimings {
+  /** Nanoseconds spent loading the model's weights; ~0 once it is resident. */
+  load_duration?: number;
+  /** Prompt tokens actually prefilled — the tokens a warm prefix cache saves. */
+  prompt_eval_count?: number;
+  prompt_eval_duration?: number;
+  total_duration?: number;
+}
+
+export interface OllamaChatChunk extends OllamaTimings {
   message?: OllamaMessage;
   done?: boolean;
+  error?: string;
+}
+
+/** A non-streamed /api/chat response, which is what the warm-up asks for. */
+export interface OllamaChatResponse extends OllamaTimings {
+  message?: OllamaMessage;
   error?: string;
 }
 

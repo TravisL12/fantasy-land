@@ -3,6 +3,7 @@ import {
   CHAT_CONFIG_KEY,
   DEFAULT_CHAT_MAX_TOOL_ROUNDS,
   DEFAULT_OLLAMA_BASE_URL,
+  DEFAULT_OLLAMA_KEEP_ALIVE,
   DEFAULT_OLLAMA_MODEL,
   DEFAULT_OLLAMA_NUM_CTX,
   DEFAULT_OLLAMA_TEMPERATURE,
@@ -20,6 +21,10 @@ export interface ChatConfig {
   maxToolRounds: number;
   /** Let reasoning models emit a thinking block (streamed separately). */
   think: boolean;
+  /** How long Ollama holds the model in memory after a request ("30m", "-1"). */
+  keepAlive: string;
+  /** Prefill the prompt on boot and when the chat page opens. */
+  warmup: boolean;
 }
 
 const number = (value: string | undefined, fallback: number) => {
@@ -43,5 +48,7 @@ export const chatConfig = registerAs(
       DEFAULT_CHAT_MAX_TOOL_ROUNDS,
     ),
     think: process.env.OLLAMA_THINK === 'true',
+    keepAlive: process.env.OLLAMA_KEEP_ALIVE ?? DEFAULT_OLLAMA_KEEP_ALIVE,
+    warmup: process.env.OLLAMA_WARMUP !== 'false',
   }),
 );

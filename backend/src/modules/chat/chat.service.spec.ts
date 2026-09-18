@@ -7,7 +7,11 @@ import type { ChatMessage, ChatStreamEvent } from './chat.types.js';
 import type { OllamaClient } from './ollama.client.js';
 import type { OllamaChatChunk } from './ollama.types.js';
 
-const settings = { model: 'test-model', maxToolRounds: 3 } as ChatConfig;
+const settings = {
+  model: 'test-model',
+  maxToolRounds: 3,
+  warmup: true,
+} as ChatConfig;
 
 const content = (text: string): OllamaChatChunk => ({
   message: { role: CHAT_ROLES.assistant, content: text },
@@ -29,6 +33,7 @@ const stubOllama = (turns: OllamaChatChunk[][]) => {
     settings,
     sent,
     listModels: vi.fn(),
+    warm: vi.fn().mockResolvedValue({ prompt_eval_count: 1_234 }),
     stream: vi.fn(async function* (messages: ChatMessage[]) {
       sent.push(structuredClone(messages));
       yield* turns[turn++] ?? [];
@@ -210,5 +215,54 @@ describe('ChatService', () => {
       modelAvailable: true,
       tools: [{ name: 'get_nfl_state', source: 'sleeper', description: '' }],
     });
+  });
+
+  it('warms with the same system prompt and tools a real turn sends', async () => {
+    const ollama = stubOllama([]);
+    const { service } = build(ollama);
+
+    await service.warmUp();
+
+    const [messages, tools] = vi.mocked(ollama.warm).mock.calls[0];
+    // Nothing but the prefix: the prefill is the point, not an answer.
+    expect(messages).toHaveLength(1);
+    expect(messages[0].role).toBe(CHAT_ROLES.system);
+    expect(messages[0].content).toContain('The current NFL season is 2026');
+    expect(tools).toEqual([
+      expect.objectContaining({
+        type: 'function',
+        function: expect.objectContaining({ name: 'get_nfl_state' }),
+      }),
+    ]);
+  });
+
+  it('warms once for overlapping triggers', async () => {
+    const ollama = stubOllama([]);
+    const { service } = build(ollama);
+
+    await Promise.all([service.warmUp(), service.warmUp()]);
+    await service.warmUp();
+
+    expect(ollama.warm).toHaveBeenCalledTimes(1);
+  });
+
+  it('swallows a failed warm-up so boot and status survive a down Ollama', async () => {
+    const ollama = stubOllama([]);
+    vi.mocked(ollama.warm).mockRejectedValue(new Error('offline'));
+    const { service } = build(ollama);
+
+    await expect(service.warmUp()).resolves.toBeUndefined();
+  });
+
+  it('skips warming while a conversation is running', async () => {
+    const ollama = stubOllama([[content('hello')]]);
+    const { service } = build(ollama);
+
+    const events = service.run(ask('hi'), signal);
+    await events.next();
+    await service.warmUp();
+
+    expect(ollama.warm).not.toHaveBeenCalled();
+    await collect(events);
   });
 });

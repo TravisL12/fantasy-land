@@ -24,8 +24,12 @@ export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
   @Get(CHAT_ROUTES.status)
-  status(): Promise<ChatStatus> {
-    return this.chatService.getStatus();
+  async status(): Promise<ChatStatus> {
+    const status = await this.chatService.getStatus();
+    // Opening the chat page is the earliest honest signal that a question is
+    // coming, so the model load and prompt prefill happen while it is typed.
+    void this.chatService.warmUp();
+    return status;
   }
 
   @Post(CHAT_ROUTES.stream)

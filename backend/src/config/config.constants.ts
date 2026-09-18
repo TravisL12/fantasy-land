@@ -17,11 +17,6 @@ export const DEFAULT_OLLAMA_BASE_URL = 'http://host.docker.internal:11434';
 export const DEFAULT_OLLAMA_MODEL = 'qwen3.5:9b-q4_K_M';
 export const DEFAULT_OLLAMA_TEMPERATURE = 0.3;
 /**
- * Ollama silently drops the oldest messages once a request exceeds the model's
- * context window, so the system prompt and tool schemas have to be paid for
- * explicitly. 16k fits those plus a few rounds of tool results on a 9b at q4.
- */
-/**
  * A ceiling, not an allocation: tokens cost prefill time only once actually
  * used, while too low a value makes Ollama silently drop the oldest messages —
  * the system prompt — partway through a multi-round tool investigation.
@@ -31,6 +26,12 @@ export const DEFAULT_OLLAMA_NUM_CTX = 65_536;
 /** Local models are slow; a long generation shouldn't look like a failure. */
 export const DEFAULT_OLLAMA_TIMEOUT_MS = 300_000;
 export const DEFAULT_CHAT_MAX_TOOL_ROUNDS = 6;
+/**
+ * How long Ollama keeps the model resident after a request. Its own default is
+ * 5 minutes, after which the next question pays the weight load again — and
+ * loses the prefix cache holding our system prompt and tool schemas.
+ */
+export const DEFAULT_OLLAMA_KEEP_ALIVE = '30m';
 
 export const MCP_CONFIG_KEY = 'mcp';
 

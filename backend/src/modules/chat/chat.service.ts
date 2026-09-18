@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  type OnApplicationBootstrap,
+} from '@nestjs/common';
 import { toErrorMessage } from '../../common/errors/error-message.js';
 import { serializeToolResult } from '../../common/text/truncate.js';
 import { ToolRegistry } from '../tools/tools.registry.js';
@@ -11,6 +15,7 @@ import {
   CHAT_ROLES,
   SEASON_CONTEXT,
   SYSTEM_PROMPT,
+  WARM_MIN_INTERVAL_MS,
 } from './chat.constants.js';
 import type {
   ChatMessage,
@@ -33,14 +38,69 @@ interface AssistantTurn {
  * events so the UI can show tool calls as they happen.
  */
 @Injectable()
-export class ChatService {
+export class ChatService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ChatService.name);
+  /** Deduped so overlapping triggers share one warm-up. */
+  private warming?: Promise<void>;
+  private lastWarmAt = 0;
+  private activeRuns = 0;
 
   constructor(
     private readonly ollama: OllamaClient,
     private readonly tools: ToolRegistry,
     private readonly sports: SportsService,
   ) {}
+
+  onApplicationBootstrap(): void {
+    if (!this.ollama.settings.warmup) return;
+    // Fire and forget: a model that is slow to load, or an Ollama that is not
+    // running at all, must not hold up or fail boot.
+    void this.warmUp();
+  }
+
+  /**
+   * Pays the cold-start costs before anyone asks anything: starting the MCP
+   * servers, resolving the season catalogs, loading the model's weights and
+   * prefilling the system prompt plus tool schemas into Ollama's prompt cache.
+   * Never rejects — a failed warm-up just means the first question is slow.
+   */
+  warmUp(base: string = SYSTEM_PROMPT): Promise<void> {
+    if (!this.ollama.settings.warmup) return Promise.resolve();
+    // A warm-up mid-conversation would queue ahead of the user's own turn, and
+    // the model is loaded with the right prefix cached anyway.
+    if (this.activeRuns > 0) return Promise.resolve();
+    if (Date.now() - this.lastWarmAt < WARM_MIN_INTERVAL_MS) {
+      return Promise.resolve();
+    }
+
+    this.warming ??= this.runWarmUp(base).finally(() => {
+      this.warming = undefined;
+    });
+    return this.warming;
+  }
+
+  private async runWarmUp(base: string): Promise<void> {
+    const startedAt = Date.now();
+    try {
+      const tools = (await this.tools.listTools()).map(toOllamaTool);
+      const messages: ChatMessage[] = [
+        { role: CHAT_ROLES.system, content: await this.systemPrompt(base) },
+      ];
+      const { prompt_eval_count: prompt = 0, load_duration: load = 0 } =
+        await this.ollama.warm(messages, tools);
+      this.logger.log(
+        `Warmed ${this.ollama.settings.model}: ${tools.length} tools, ` +
+          `${prompt} prompt tokens, ${Math.round(load / 1e6)}ms loading the ` +
+          `model, ${Date.now() - startedAt}ms total`,
+      );
+    } catch (error) {
+      this.logger.warn(`Warm-up skipped: ${toErrorMessage(error)}`);
+    } finally {
+      // Set on failure too, so a down Ollama is retried once a minute rather
+      // than on every status request.
+      this.lastWarmAt = Date.now();
+    }
+  }
 
   async getStatus(): Promise<ChatStatus> {
     const { model, baseUrl } = this.ollama.settings;
@@ -90,6 +150,7 @@ export class ChatService {
       ...history,
     ];
 
+    this.activeRuns += 1;
     try {
       for (let round = 0; round < maxToolRounds; round += 1) {
         const turn: AssistantTurn = { content: '', toolCalls: [] };
@@ -132,6 +193,11 @@ export class ChatService {
       this.logger.error(`Chat failed: ${message}`);
       yield { type: CHAT_EVENTS.error, message };
       yield { type: CHAT_EVENTS.done };
+    } finally {
+      this.activeRuns -= 1;
+      // The turn just left the model loaded with this prefix cached, so the
+      // next warm-up trigger has nothing to do.
+      this.lastWarmAt = Date.now();
     }
   }
 

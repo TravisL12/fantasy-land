@@ -21,6 +21,13 @@ export const CHAT_EVENTS = {
   error: 'error',
 } as const;
 
+/**
+ * A floor between warm-ups: the chat page's status query refetches on mount and
+ * on refocus, and re-prefilling the prompt on every one of those would compete
+ * with the conversation it is supposed to make faster.
+ */
+export const WARM_MIN_INTERVAL_MS = 60_000;
+
 export const MESSAGE_MAX_LENGTH = 4_000;
 export const MAX_MESSAGES = 50;
 
