@@ -2,8 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { clamp } from '../../common/math/number.js';
 import { SPORT_KEYS } from '../sports/sports.constants.js';
 import type { SportKey, StatGroup } from '../sports/sports.types.js';
-import { resolveStatKey } from '../sports/sports.utils.js';
-import { TOOL_MESSAGES } from './tools.constants.js';
+import { matchKey, resolveStatKey } from '../sports/sports.utils.js';
+import { ROW_LEVEL_FIELDS, TOOL_MESSAGES } from './tools.constants.js';
 import type { ToolLimit } from './tools.types.js';
 
 export { clamp };
@@ -123,7 +123,11 @@ export const resolveStatKeys = (
     if (!group) return new Set([...asked, ...keep(extra)]);
 
     const resolved = asked.map((key) => resolveStatKey(group, key));
-    const unknown = asked.filter((_, index) => !resolved[index]);
+    // A row-level field is not a stat, but it is already in the answer, so
+    // asking for it is a request we can grant rather than an error.
+    const unknown = asked.filter(
+      (key, index) => !resolved[index] && !matchKey(ROW_LEVEL_FIELDS, key),
+    );
     if (unknown.length) {
       const defined = group.stats.map(({ key }) => key);
       throw new BadRequestException(

@@ -2,6 +2,23 @@ export const FANTASY_TOOLS = Symbol('FANTASY_TOOLS');
 
 export const LOCAL_TOOL_SOURCE = 'fantasy-land';
 
+/**
+ * Fields every row carries beside its `stats` object. A model listing the
+ * columns it wants writes "fantasyPoints" among them, which is not a stat key
+ * and used to be rejected — costing a round to recover from a request that was
+ * already satisfied, since these are returned whatever the filter says.
+ */
+export const ROW_LEVEL_FIELDS = [
+  'name',
+  'team',
+  'position',
+  'gamesPlayed',
+  'games',
+  'fantasyPoints',
+  'fantasyPointsPerGame',
+  'pointsPerGame',
+] as const;
+
 export const TOOL_MESSAGES = {
   unknownTool: (name: string) => `Unknown tool "${name}"`,
   /** Named keys beat a bare rejection: the model retries with a real one. */

@@ -740,13 +740,24 @@ const resolveTeam = (team: string, known: string[]) => {
 };
 
 const resolveScoring = (catalog: SportCatalog, key?: string) => {
-  const keys = catalog.scoringPresets.map((p) => p.key);
-  const match = key && matchKey(keys, key);
-  const preset = key
-    ? catalog.scoringPresets.find((p) => p.key === match)
-    : catalog.scoringPresets[0];
-  if (!preset)
-    throw new BadRequestException(SPORTS_MESSAGES.unknownScoring(key ?? ''));
+  if (!key) return catalog.scoringPresets[0];
+
+  // Label as well as key, so "half ppr" and "Standard points" both land.
+  const match = matchKey(
+    catalog.scoringPresets.flatMap((preset) => [preset.key, preset.label]),
+    key,
+  );
+  const preset = catalog.scoringPresets.find(
+    ({ key: presetKey, label }) => presetKey === match || label === match,
+  );
+  if (!preset) {
+    throw new BadRequestException(
+      SPORTS_MESSAGES.unknownScoring(
+        key,
+        catalog.scoringPresets.map((p) => p.key),
+      ),
+    );
+  }
   return preset;
 };
 

@@ -7,6 +7,7 @@ import {
 import { EMPTY_STAT } from '@/utils';
 import {
   bestValue,
+  blankReason,
   chartPoints,
   compareValues,
   formatCell,
@@ -56,6 +57,53 @@ describe('resolveRows', () => {
     expect(resolveRows({ id: '1', name: 'Ohtani' }, 'player')).toEqual([
       { id: '1', name: 'Ohtani' },
     ]);
+  });
+
+  // Tools name their array for what it holds, and a spec may omit rowsPath
+  // entirely — defaulting to "rows" left those widgets rendering the envelope.
+  it.each([
+    ['players', { players: [{ name: 'Judge' }] }],
+    ['games', { games: [{ date: '2026-04-01' }] }],
+    ['teams', { teams: [{ team: 'NYY' }] }],
+    ['pitchers', { pitchers: [{ matchupScore: 60 }] }],
+  ])('finds the %s array when no rowsPath is given', (_key, data) => {
+    expect(resolveRows(data)).toHaveLength(1);
+  });
+
+  it('falls back to the real array when rowsPath names nothing', () => {
+    expect(resolveRows({ teams: [{ team: 'NYY' }] }, 'rows')).toEqual([
+      { team: 'NYY' },
+    ]);
+  });
+
+  it('leaves an envelope with several arrays alone rather than guessing', () => {
+    const data = { alpha: [{ a: 1 }], beta: [{ b: 2 }] };
+    expect(resolveRows(data)).toEqual([data]);
+  });
+});
+
+describe('blankReason', () => {
+  it('says nothing when a path resolves', () => {
+    expect(blankReason(table, [{ name: 'Judge' }])).toBeUndefined();
+  });
+
+  it('names the paths that missed and the fields that exist', () => {
+    const reason = blankReason(table, [{ player: 'Judge', stats: { hr: 40 } }]);
+
+    expect(reason?.paths).toEqual(['name']);
+    expect(reason?.fields).toEqual(['player', 'stats']);
+  });
+
+  it('stays quiet when only some paths miss, so a partial widget still renders', () => {
+    const widget: TableWidget = {
+      ...table,
+      columns: [
+        { key: 'name', header: 'Player', path: 'name' },
+        { key: 'hr', header: 'HR', path: 'stats.hr' },
+      ],
+    };
+
+    expect(blankReason(widget, [{ name: 'Judge' }])).toBeUndefined();
   });
 });
 

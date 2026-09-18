@@ -12,6 +12,9 @@ export const DASHBOARD_VIEW_COPY = {
   comparePrompt: 'Tick rows in the table above to compare them here.',
   versusEmpty: 'This source returned nothing to compare.',
   metric: 'Metric',
+  /** Shown in place of a grid of dashes, so an empty widget says why. */
+  noMatch: (paths: string[], fields: string[]) =>
+    `This widget looks for ${paths.join(', ')}, which the data does not have. The rows carry: ${fields.join(', ')}.`,
 } as const;
 
 /** Only used when a column asks for no format at all. */

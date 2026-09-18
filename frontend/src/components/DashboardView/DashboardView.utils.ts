@@ -1,7 +1,7 @@
 import {
   BETTER_DIRECTIONS,
-  DEFAULT_ROWS_PATH,
   DEFAULT_ROW_KEY,
+  ROW_ARRAY_KEYS,
   WIDGET_TYPES,
   type BetterDirection,
   type CellFormat,
@@ -34,6 +34,23 @@ export const getPath = (source: unknown, path: string): unknown =>
       source,
     );
 
+/**
+ * A value that is present but null counts as missing: MLB game rows carry
+ * `week: null`, and treating that as a real value plots every game at the same
+ * empty category.
+ */
+const absent = (value: unknown) => value === undefined || value === null;
+
+/** A stat tile reads its own object first, then the result it came from. */
+export const tileValue = (
+  data: unknown,
+  result: unknown,
+  path: string,
+): unknown => {
+  const value = getPath(data, path);
+  return absent(value) ? getPath(result, path) : value;
+};
+
 export const formatCell = (value: unknown, format?: CellFormat): string => {
   if (value === undefined || value === null || value === '') return EMPTY_STAT;
   if (!format || format === TEXT_FORMAT) {
@@ -46,17 +63,45 @@ export const formatCell = (value: unknown, format?: CellFormat): string => {
     : String(value);
 };
 
+const asRows = (value: unknown): Record<string, unknown>[] | undefined => {
+  if (Array.isArray(value)) return value.filter(isRecord);
+  return isRecord(value) ? [value] : undefined;
+};
+
+/**
+ * The row array in a result, when the spec did not name one. Tools name their
+ * array for what it holds, so a widget that omitted rowsPath used to resolve
+ * nothing and fall back to rendering the envelope object as a single empty row.
+ * The conventional names are tried first, then any lone array of objects.
+ */
+export const findRows = (
+  data: unknown,
+): Record<string, unknown>[] | undefined => {
+  if (!isRecord(data)) return asRows(data);
+
+  const named = ROW_ARRAY_KEYS.map((key) => data[key]).find(Array.isArray);
+  if (named) return asRows(named);
+
+  const arrays = Object.values(data).filter(
+    (value): value is unknown[] => Array.isArray(value) && value.some(isRecord),
+  );
+  return arrays.length === 1 ? asRows(arrays[0]) : undefined;
+};
+
 /**
  * Tool results are mostly `{ rows: [...] }`, but a per-player tool answers with
  * a single object — showing that as a one-row table beats showing nothing.
+ *
+ * A rowsPath that resolves to nothing falls back to the same search rather than
+ * to the whole result: a spec naming the wrong key should still show the data
+ * it was pointed at, not one row of dashes.
  */
 export const resolveRows = (
   data: unknown,
-  rowsPath = DEFAULT_ROWS_PATH,
+  rowsPath?: string,
 ): Record<string, unknown>[] => {
-  const found = getPath(data, rowsPath) ?? data;
-  if (Array.isArray(found)) return found.filter(isRecord);
-  return isRecord(found) ? [found] : [];
+  const named = rowsPath ? asRows(getPath(data, rowsPath)) : undefined;
+  return named ?? findRows(data) ?? asRows(data) ?? [];
 };
 
 /** A widget's own row cap; an uncapped widget keeps everything the source returned. */
@@ -153,6 +198,52 @@ export const chartPoints = (
       ];
     });
   });
+
+/** Every path a widget reads out of one row, with the field that asked for it. */
+export const widgetPaths = (widget: DashboardWidget): [string, string][] => {
+  const columns =
+    widget.type === WIDGET_TYPES.table
+      ? widget.columns
+      : widget.type === WIDGET_TYPES.versus
+        ? widget.metrics
+        : widget.type === WIDGET_TYPES.stats
+          ? widget.tiles
+          : (widget.type === WIDGET_TYPES.compare && widget.metrics) || [];
+
+  const paths: [string, string][] = columns.map(({ key, path }) => [key, path]);
+
+  if (widget.type === WIDGET_TYPES.line || widget.type === WIDGET_TYPES.bar) {
+    paths.push(...widget.series.map(({ key, path }): [string, string] => [key, path]));
+  }
+  if (widget.type === WIDGET_TYPES.meter) paths.push(['value', widget.valuePath]);
+  if (widget.type === WIDGET_TYPES.badges) paths.push(['status', widget.statusPath]);
+
+  return paths;
+};
+
+/**
+ * Why a widget that has rows still renders nothing: every path it addresses is
+ * missing from every row. A grid of dashes looks like a broken feature, so the
+ * widget says which fields it looked for and what the rows actually carry — the
+ * same reasoning as the chatty spec validation, pointed at the person instead.
+ */
+export const blankReason = (
+  widget: DashboardWidget,
+  rows: Record<string, unknown>[],
+): { paths: string[]; fields: string[] } | undefined => {
+  const paths = widgetPaths(widget);
+  if (rows.length === 0 || paths.length === 0) return undefined;
+
+  const missing = paths.filter(([, path]) =>
+    rows.every((row) => absent(getPath(row, path))),
+  );
+  if (missing.length < paths.length) return undefined;
+
+  return {
+    paths: missing.map(([, path]) => path),
+    fields: Object.keys(rows[0] ?? {}),
+  };
+};
 
 /**
  * Every source a widget reads. A chart may span several, and a compare widget

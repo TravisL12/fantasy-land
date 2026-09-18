@@ -18,6 +18,54 @@ const spec = {
   widgets: [table],
 };
 
+describe('parseSpec source references', () => {
+  const widget = (over: Record<string, unknown>) => ({
+    ...spec,
+    widgets: [{ ...table, ...over }],
+  });
+
+  it('fills in an omitted source when the spec defines exactly one', () => {
+    const { source, ...noSource } = table;
+    void source;
+    const parsed = parseSpec({ ...spec, widgets: [noSource] }, TOOLS);
+
+    expect(parsed.widgets[0]).toMatchObject({ source: 'top' });
+  });
+
+  it('accepts the source id spelled sourceId', () => {
+    const { source, ...noSource } = table;
+    void source;
+    const parsed = parseSpec(widget({ ...noSource, sourceId: 'top' }), TOOLS);
+
+    expect(parsed.widgets[0]).toMatchObject({ source: 'top' });
+  });
+
+  it('accepts the whole source object in place of its id', () => {
+    const parsed = parseSpec(widget({ source: { id: 'top' } }), TOOLS);
+
+    expect(parsed.widgets[0]).toMatchObject({ source: 'top' });
+  });
+
+  it('still rejects an omitted source when there is more than one', () => {
+    const { source, ...noSource } = table;
+    void source;
+
+    expect(() =>
+      parseSpec(
+        {
+          ...spec,
+          sources: [
+            ...spec.sources,
+            { id: 'other', tool: 'get_leaderboard', args: {} },
+          ],
+          widgets: [noSource],
+        },
+        TOOLS,
+      ),
+    ).toThrow(BadRequestException);
+  });
+});
+
 describe('parseSpec', () => {
   it('normalizes a valid spec', () => {
     const parsed = parseSpec(spec, TOOLS);

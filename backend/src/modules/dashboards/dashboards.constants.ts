@@ -44,7 +44,34 @@ export const DASHBOARD_EVENTS = { spec: 'dashboard_spec' } as const;
 
 export const BUILD_DASHBOARD_TOOL = 'build_dashboard';
 
+/**
+ * The builder gets a longer loop than a chat turn. Designing a dashboard costs
+ * rounds before the first one is even attempted — a name lookup, the catalog,
+ * the data tool itself — and a build that runs out mid-way leaves the person
+ * with nothing at all, where a chat turn that runs out has still said something.
+ */
+export const BUILDER_MAX_TOOL_ROUNDS = 10;
+
+/** Sent once when a pass ends with data fetched but no dashboard built. */
+export const BUILD_NUDGE =
+  'You did not call build_dashboard, so nothing was rendered. Design the dashboard now and call build_dashboard with sources and widgets. Do not answer in prose.';
+
 export const DEFAULT_ROWS_PATH = 'rows';
+
+/**
+ * Where a tool's row array actually lives, in the order we look. Every tool
+ * names its array for what it holds — get_leaderboard says "rows", but
+ * compare_players says "players", a game log says "games", get_matchup_ratings
+ * says "teams" and get_pitcher_starts says "pitchers". Mirrored in the
+ * frontend's dashboards.constants.ts, which resolves rows the same way.
+ */
+export const ROW_ARRAY_KEYS = [
+  DEFAULT_ROWS_PATH,
+  'players',
+  'games',
+  'teams',
+  'pitchers',
+] as const;
 export const DEFAULT_ROW_KEY = 'id';
 export const DEFAULT_LABEL_PATH = 'name';
 /** compare_players and compare_teams both answer with a "players"/"teams" array. */
@@ -60,6 +87,8 @@ export const SPEC_LIMITS = {
   rows: 200,
   /** Past four lines on one chart no palette keeps the series apart. */
   series: 4,
+  /** Field names listed back to the model when a path misses. */
+  reportedFields: 40,
   tiles: 6,
   meters: 12,
   badges: 16,
@@ -86,6 +115,26 @@ export const DASHBOARD_MESSAGES = {
     `Chart "${widget}" has more than ${SPEC_LIMITS.series} series. Split it into two charts — past ${SPEC_LIMITS.series} lines no palette keeps them apart.`,
   needMetrics: (widget: string) =>
     `Versus "${widget}" needs "metrics": the numbers the two entities are compared on.`,
+
+  // Checking the spec against the data it will render. These come back to the
+  // model as a tool error, so each one names the fix rather than the fault.
+  specMismatch: (problems: string[]) =>
+    [
+      'The dashboard was not rendered: some widgets address data that is not in the tool result.',
+      ...problems.map((problem) => `- ${problem}`),
+      'Fix the paths listed above and call build_dashboard again with the whole spec.',
+    ].join('\n'),
+  badPaths: (widget: string, paths: string[], fields: string[]) =>
+    `Widget "${widget}": ${paths.join(', ')} — no row has these. The rows carry: ${fields.join(', ')}.`,
+  badStatsPath: (widget: string, path: string, keys: string[]) =>
+    `Stats widget "${widget}" reads "${path}", which is not an object in the result. The result has: ${keys.join(', ')}.`,
+  noRows: (widget: string, source: string, keys: string[]) =>
+    `Widget "${widget}" found no rows in source "${source}". The result has: ${keys.join(', ') || 'no fields'}.`,
+  rowsPathFixed: (widget: string, from: string, to: string) =>
+    `Widget "${widget}": rowsPath "${from}" does not exist; reading "${to}" instead.`,
+  sourceFailed: (source: string, error: string) =>
+    `Source "${source}" failed: ${error}`,
+  emptySource: (source: string) => `Source "${source}" returned no rows.`,
 } as const;
 
 /**

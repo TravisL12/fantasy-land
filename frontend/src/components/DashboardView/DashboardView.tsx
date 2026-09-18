@@ -3,6 +3,7 @@ import {
   DEFAULT_VERSUS_ROWS_PATH,
   WIDGET_TYPES,
   type DashboardWidget,
+  type StatsWidget,
   type TableWidget,
 } from '@/api/dashboards';
 import { Button } from '@/components/Button';
@@ -27,6 +28,7 @@ import {
 } from './DashboardView.styles';
 import type { DashboardViewProps, Selection } from './DashboardView.types';
 import {
+  blankReason,
   getPath,
   resolveTableRows,
   tableWidgets,
@@ -80,6 +82,34 @@ export const DashboardView = ({ spec, actions, sample }: DashboardViewProps) => 
       })
       .find(Boolean);
 
+  /**
+   * A widget whose data came back but whose every path misses says so. Rendering
+   * it anyway would draw a full grid of dashes, which reads as a broken feature
+   * rather than as a spec pointed at the wrong fields.
+   */
+  /** A stats widget's tiles read its object and the result behind it. */
+  const statsData = (widget: StatsWidget): Record<string, unknown> => {
+    const data = run?.results[widget.source]?.data;
+    const scoped = widget.path ? getPath(data, widget.path) : data;
+    return {
+      ...(data as Record<string, unknown>),
+      ...(scoped as Record<string, unknown>),
+    };
+  };
+
+  const blank = (widget: DashboardWidget): string | undefined => {
+    if (widget.type === WIDGET_TYPES.compare) return undefined;
+    const rows =
+      widget.type === WIDGET_TYPES.table
+        ? (rowsByTable[widget.id] ?? []).map(({ data }) => data)
+        : widget.type === WIDGET_TYPES.stats
+          ? [statsData(widget)]
+          : widgetRows(run, widget.source, widget.rowsPath);
+
+    const reason = blankReason(widget, rows as Record<string, unknown>[]);
+    return reason && DASHBOARD_VIEW_COPY.noMatch(reason.paths, reason.fields);
+  };
+
   const renderWidget = (widget: DashboardWidget) => {
     switch (widget.type) {
       case WIDGET_TYPES.table:
@@ -123,6 +153,7 @@ export const DashboardView = ({ spec, actions, sample }: DashboardViewProps) => 
           <StatTiles
             widget={widget}
             data={widget.path ? getPath(data, widget.path) : data}
+            result={data}
           />
         );
       }
@@ -179,11 +210,14 @@ export const DashboardView = ({ spec, actions, sample }: DashboardViewProps) => 
       <Grid>
         {spec.widgets.map((widget) => {
           const failed = failure(widget);
+          const empty = failed ? undefined : blank(widget);
           return (
             <Widget key={widget.id} $width={widget.width}>
               <WidgetTitle>{widget.title}</WidgetTitle>
               {failed ? (
                 <StatusMessage variant={STATUS_VARIANTS.error}>{failed}</StatusMessage>
+              ) : empty ? (
+                <StatusMessage>{empty}</StatusMessage>
               ) : (
                 renderWidget(widget)
               )}

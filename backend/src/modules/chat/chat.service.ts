@@ -73,7 +73,8 @@ export class ChatService {
     signal: AbortSignal,
     options: ChatRunOptions = {},
   ): AsyncGenerator<ChatStreamEvent> {
-    const { maxToolRounds } = this.ollama.settings;
+    const maxToolRounds =
+      options.maxToolRounds ?? this.ollama.settings.maxToolRounds;
     const extras = new Map(
       (options.extraTools ?? []).map((tool) => [tool.definition.name, tool]),
     );

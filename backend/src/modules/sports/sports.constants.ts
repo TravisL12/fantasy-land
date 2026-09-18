@@ -156,7 +156,9 @@ export const SPORTS_CACHE_VERSION = 'v5';
 
 export const SPORTS_MESSAGES = {
   unknownGroup: (group: string) => `Unknown stat group "${group}"`,
-  unknownScoring: (scoring: string) => `Unknown scoring preset "${scoring}"`,
+  /** Names the presets, as unknownTeam does: a bare rejection costs a round. */
+  unknownScoring: (scoring: string, known: string[]) =>
+    `Unknown scoring preset "${scoring}" — use one of: ${known.join(', ')}`,
   unsupportedKind: (kind: string) => `This sport does not support "${kind}"`,
   weeksUnsupported: 'This sport does not support weekly stats',
   playerNotFound: 'Player not found',

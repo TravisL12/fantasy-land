@@ -1,8 +1,10 @@
+import { BadRequestException } from '@nestjs/common';
 import { LOCAL_TOOL_SOURCE } from '../tools/tools.constants.js';
 import type { FantasyTool, ToolDefinition } from '../tools/tools.types.js';
 import {
   BETTER_DIRECTIONS,
   BUILD_DASHBOARD_TOOL,
+  DASHBOARD_MESSAGES,
   CELL_ALIGNMENTS,
   CELL_FORMATS,
   SORT_ORDERS,
@@ -10,8 +12,9 @@ import {
   WIDGET_TYPES,
   WIDGET_WIDTHS,
 } from './dashboards.constants.js';
-import type { DashboardSpec } from './dashboards.types.js';
+import type { DashboardRun, DashboardSpec } from './dashboards.types.js';
 import { parseSpec } from './dashboards.utils.js';
+import { reviewSpec } from './dashboards.verify.js';
 
 const COLUMN_SCHEMA = {
   type: 'object',
@@ -54,10 +57,15 @@ const SERIES_SCHEMA = {
 } as const;
 
 /**
- * The one tool in the builder's list that fetches nothing: it validates what the
- * model designed and hands it back through `onSpec`. Validation failures return
- * as a normal tool error, which is how the model gets a chance to fix a bad path
- * or a dangling widget reference instead of the turn dying.
+ * The one tool in the builder's list that fetches nothing of its own: it
+ * validates what the model designed and hands it back through `onSpec`.
+ *
+ * Validation runs twice over. `parseSpec` checks the shape — ids, references,
+ * limits — and then the spec is run against the real tool results, because a
+ * structurally perfect spec can still address fields that do not exist, and
+ * that is exactly the failure a person sees as "it fetched, but it's empty".
+ * Both kinds of failure return as a normal tool error, which is how the model
+ * gets a chance to fix a bad path instead of saving a dashboard of dashes.
  */
 export class BuildDashboardTool implements FantasyTool {
   readonly definition: ToolDefinition = {
@@ -196,15 +204,25 @@ export class BuildDashboardTool implements FantasyTool {
   constructor(
     private readonly knownTools: string[],
     private readonly onSpec: (spec: DashboardSpec) => void,
+    private readonly runSpec: (spec: DashboardSpec) => Promise<DashboardRun>,
   ) {}
 
-  execute(args: Record<string, unknown>) {
-    const spec = parseSpec(args, this.knownTools);
+  async execute(args: Record<string, unknown>) {
+    const parsed = parseSpec(args, this.knownTools);
+    // The sources are the calls the model just made, so this is served from the
+    // data cache rather than fetched again.
+    const { spec, problems, notes } = reviewSpec(parsed, await this.runSpec(parsed));
+
+    if (problems.length) {
+      throw new BadRequestException(DASHBOARD_MESSAGES.specMismatch(problems));
+    }
+
     this.onSpec(spec);
-    return Promise.resolve({
+    return {
       ok: true,
       rendered: spec.widgets.map(({ id, type }) => ({ id, type })),
+      ...(notes.length ? { notes } : {}),
       note: 'The dashboard is on screen. Reply with one short sentence describing it.',
-    });
+    };
   }
 }

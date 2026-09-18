@@ -173,6 +173,17 @@ export interface DashboardRun {
   results: Record<string, SourceResult>;
 }
 
+/**
+ * The result of checking a spec against real data: the spec with what could be
+ * repaired repaired, the problems only the model can fix, and what was adjusted
+ * or could not be checked.
+ */
+export interface SpecReview {
+  spec: DashboardSpec;
+  problems: string[];
+  notes: string[];
+}
+
 /** What a save carries: the spec, plus the words that asked for it. */
 export interface DashboardInput {
   spec: DashboardSpec;

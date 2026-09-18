@@ -35,6 +35,9 @@ const fail = (message: string): never => {
   throw new BadRequestException(message);
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 const asRecord = (value: unknown, what: string): Record<string, unknown> => {
   // Small models hand back a whole object as a JSON string.
   const parsed = typeof value === 'string' ? tryParse(value) : value;
@@ -157,17 +160,32 @@ const widgetBase = (widget: Record<string, unknown>) => {
 };
 
 /** Resolves a widget's "source" against the spec's sources, or says what exists. */
+/**
+ * The source id a widget names, however it named it. A small model drops the
+ * field, spells it sourceId, or hands back the whole source object — and,
+ * having been told only that "source" is required, sends the identical widget
+ * again until the round budget is gone. Where the spec defines a single source
+ * there is nothing to disambiguate, so an omission is filled in rather than
+ * bounced back.
+ */
+const namedSource = (
+  widget: Record<string, unknown>,
+  field: string,
+): unknown => {
+  const raw = widget[field] ?? widget[`${field}Id`] ?? widget[`${field}_id`];
+  return isRecord(raw) ? (raw.id ?? raw.source) : raw;
+};
+
 const sourceRef = (
   widget: Record<string, unknown>,
   id: string,
   { sourceIds }: ParseContext,
   field = 'source',
 ): string => {
-  const source = requiredText(
-    widget[field],
-    `"${field}" on widget "${id}"`,
-    SPEC_LIMITS.title,
-  );
+  const named = optionalText(namedSource(widget, field));
+  if (!named && sourceIds.length === 1) return sourceIds[0];
+
+  const source = requiredText(named, `"${field}" on widget "${id}"`, SPEC_LIMITS.title);
   if (!sourceIds.includes(source)) {
     fail(DASHBOARD_MESSAGES.unknownSource(id, source, sourceIds));
   }

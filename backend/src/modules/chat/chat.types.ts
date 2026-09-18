@@ -38,6 +38,8 @@ export interface ChatRunOptions {
   systemPrompt?: string;
   /** Request-scoped tools, offered alongside the registry's and winning a clash. */
   extraTools?: FantasyTool[];
+  /** Overrides the configured round budget for callers that need a longer loop. */
+  maxToolRounds?: number;
 }
 
 export interface ChatStatus {

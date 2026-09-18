@@ -15,6 +15,7 @@ export {
   DEFAULT_ROW_KEY,
   DEFAULT_VERSUS_ROWS_PATH,
   PROMPT_MAX_LENGTH,
+  ROW_ARRAY_KEYS,
   WIDGET_TYPES,
   WIDGET_WIDTHS,
 } from './dashboards.constants';
