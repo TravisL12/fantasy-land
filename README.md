@@ -99,7 +99,7 @@ Set it up:
 1. Install Ollama on the host and pull a model that supports tool calling: `ollama pull qwen3.5:9b-q4_K_M`.
 2. Put the model in `.env` as `OLLAMA_MODEL`. The container reaches the host at `host.docker.internal` (see `OLLAMA_BASE_URL`).
 
-The model gets two families of tools. The first is this app's own data, run in-process against `SportsService` — `find_player`, `get_sport_catalog`, `get_leaderboard`, `get_player_season_stats`, `get_player_game_log` and `compare_players` — so stats answers use our scoring engine, our cache and our consistency numbers (floor, ceiling, volatility). Adding one means implementing `FantasyTool` under `backend/src/modules/tools/` and listing it in `tools.module.ts`.
+The model gets two families of tools. The first is this app's own data, run in-process against `SportsService` — `find_player`, `get_sport_catalog`, `get_leaderboard`, `get_player_stats` and `compare_players` — so stats answers use our scoring engine, our cache and our consistency numbers (floor, ceiling, volatility). Adding one means implementing `FantasyTool` under `backend/src/modules/tools/` and listing it in `tools.module.ts`.
 
 The second is league context from MCP servers listed in `MCP_SERVERS`. It defaults to the bundled [`sleeper-mcp`](https://www.npmjs.com/package/sleeper-mcp) package (18 read-only Sleeper tools, no API key), started over stdio. A server that fails to start is logged and skipped, so chat still works without it. Where both offer the same tool, ours wins. `GET /api/chat/status` shows what actually loaded and where each tool came from.
 

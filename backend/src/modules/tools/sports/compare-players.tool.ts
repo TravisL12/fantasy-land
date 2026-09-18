@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { WINDOW_DEFAULTS } from '../../sports/sports.constants.js';
 import { SportsService } from '../../sports/sports.service.js';
-import type { GameWindow } from '../../sports/sports.types.js';
+import type { GameWindow, StatValues } from '../../sports/sports.types.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
-import type { FantasyTool, ToolDefinition } from '../tools.types.js';
+import type {
+  FantasyTool,
+  ToolContext,
+  ToolDefinition,
+} from '../tools.types.js';
 import {
   asNumber,
   asNumberArray,
@@ -11,6 +15,8 @@ import {
   asString,
   asStringArray,
   clamp,
+  pickStats,
+  resolveStatKeys,
 } from '../tools.utils.js';
 import {
   COMPARE_MAX_PLAYERS,
@@ -19,6 +25,7 @@ import {
   SEASON_PARAM,
   SPORTS_TOOL_MESSAGES,
   SPORT_PARAM,
+  STATS_PARAM,
   WINDOW_PARAMS,
 } from './sports-tools.constants.js';
 
@@ -32,7 +39,7 @@ export class ComparePlayersTool implements FantasyTool {
     name: 'compare_players',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Compare players head-to-head on the same scoring: points, points per game, floor, ceiling and volatility, plus who outscored whom in the games they both played. Covers a whole season by default, or any interval — pass startDate/endDate for a stretch of the calendar, weeks for NFL weeks, or lastN for the most recent games. Use this for start/sit, trade and "who has been better since X" questions.',
+      'Compare players on the same scoring: points, points per game, floor, ceiling, volatility, and who outscored whom in the games they both played. Covers the season by default, or any interval via startDate/endDate, weeks or lastN. Use this for start/sit, trade and "who has been better since X" questions.',
     parameters: {
       type: 'object',
       properties: {
@@ -44,6 +51,7 @@ export class ComparePlayersTool implements FantasyTool {
         },
         season: SEASON_PARAM,
         scoring: SCORING_PARAM,
+        stats: STATS_PARAM,
         ...WINDOW_PARAMS,
       },
       required: ['playerIds'],
@@ -52,7 +60,7 @@ export class ComparePlayersTool implements FantasyTool {
 
   constructor(private readonly sports: SportsService) {}
 
-  async execute(args: Record<string, unknown>) {
+  async execute(args: Record<string, unknown>, context?: ToolContext) {
     const playerIds = asStringArray(args.playerIds);
     if (playerIds.length < 2) {
       throw new BadRequestException(SPORTS_TOOL_MESSAGES.needTwoPlayers);
@@ -71,10 +79,29 @@ export class ComparePlayersTool implements FantasyTool {
         : undefined,
     };
 
-    return this.sports.comparePlayers(asSport(args.sport), playerIds, {
+    const sport = asSport(args.sport);
+    const result = await this.sports.comparePlayers(sport, playerIds, {
       season: asString(args.season),
       scoring: asString(args.scoring),
       window,
     });
+
+    // Each player repeats their whole stat group, so the filter is worth more
+    // here than anywhere else: it is the one tool that multiplies a stat line.
+    const catalog = await this.sports.getCatalog(sport);
+    const group = catalog.groups.find(
+      ({ key }) => key === result.players[0]?.group,
+    );
+    const keys = resolveStatKeys(group, args.stats, { full: context?.full });
+
+    return {
+      ...result,
+      players: result.players.map(
+        (player: { totals: StatValues }) => ({
+          ...player,
+          totals: pickStats(player.totals, keys),
+        }),
+      ),
+    };
   }
 }

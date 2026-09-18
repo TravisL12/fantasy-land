@@ -5,16 +5,29 @@ import {
   COMPUTED_SORT_KEYS,
   SORT_ORDERS,
 } from '../../sports/sports.constants.js';
-import type { SportCatalog } from '../../sports/sports.types.js';
+import type { SportCatalog, StatGroup } from '../../sports/sports.types.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
-import type { FantasyTool, ToolDefinition } from '../tools.types.js';
-import { asLimit, asNumber, asSport, asString } from '../tools.utils.js';
+import type {
+  FantasyTool,
+  ToolContext,
+  ToolDefinition,
+} from '../tools.types.js';
 import {
+  asLimit,
+  asNumber,
+  asSport,
+  asString,
+  pickStats,
+  resolveStatKeys,
+} from '../tools.utils.js';
+import {
+  GROUP_PARAM,
   LEADERBOARD_LIMIT,
   SCORING_PARAM,
   SEASON_PARAM,
   SPORTS_TOOL_MESSAGES,
   SPORT_PARAM,
+  STATS_PARAM,
 } from './sports-tools.constants.js';
 
 /** Ranked stat lines — "best X by Y" questions. */
@@ -24,8 +37,7 @@ export class LeaderboardTool implements FantasyTool {
     name: 'get_leaderboard',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Rank players by fantasy points or any stat, filtered by position, week and stat group. Use this for "best/top players" questions. Call get_sport_catalog first if you need the valid group, position, stat or scoring keys. ' +
-      'Rows come back already ranked, so report them in the order given rather than re-sorting. Each row carries the player\'s id, name, team and position plus gamesPlayed, fantasyPoints (the total over the range) and fantasyPointsPerGame (the rate — use this one when games played differ), and a nested "stats" object keyed by stat key, e.g. stats.rec_yd. The top-level "total" is how many players matched before the limit, and "scoring" names the preset that was applied.',
+      'Rank players by fantasy points or any stat, filtered by position, week and stat group. Use this for "best/top players" questions. Rows come back already ranked — report them in the order given. Call get_sport_catalog if you need the valid group, position, stat or scoring keys.',
     parameters: {
       type: 'object',
       properties: {
@@ -36,11 +48,7 @@ export class LeaderboardTool implements FantasyTool {
           type: 'integer',
           description: 'A single week. Omit for season totals.',
         },
-        group: {
-          type: 'string',
-          description:
-            'Stat group key, e.g. "offense" or "kicking" for NFL. Defaults to the first group.',
-        },
+        group: GROUP_PARAM,
         position: {
           type: 'string',
           description: 'Filter to one position, e.g. "WR".',
@@ -48,7 +56,7 @@ export class LeaderboardTool implements FantasyTool {
         sort: {
           type: 'string',
           description:
-            'What to rank by: "fantasyPoints" (default), "fantasyPointsPerGame", "gamesPlayed", or any stat key such as "rec_yd".',
+            'What to rank by: "fantasyPoints" (default), "fantasyPointsPerGame", "gamesPlayed", or any stat key.',
         },
         order: {
           type: 'string',
@@ -59,6 +67,7 @@ export class LeaderboardTool implements FantasyTool {
           type: 'integer',
           description: 'Ignore players below this many games played.',
         },
+        stats: STATS_PARAM,
         limit: {
           type: 'integer',
           description: `How many players to return (default ${LEADERBOARD_LIMIT.default}, max ${LEADERBOARD_LIMIT.max}).`,
@@ -69,22 +78,32 @@ export class LeaderboardTool implements FantasyTool {
 
   constructor(private readonly sports: SportsService) {}
 
-  async execute(args: Record<string, unknown>) {
+  async execute(args: Record<string, unknown>, context?: ToolContext) {
     const sport = asSport(args.sport);
-    const group = asString(args.group);
+    const groupKey = asString(args.group);
     const sort = asString(args.sort);
+    const catalog = await this.sports.getCatalog(sport);
+    const group = resolveGroup(catalog, groupKey);
+
     if (sort) {
       // Sorting by a key the group does not define quietly falls back to
       // alphabetical order, which looks like a real ranking. Say so instead.
-      assertSortable(await this.sports.getCatalog(sport), group, sort);
+      assertSortable(group, sort);
     }
 
-    const result = await this.sports.getStats(
+    // The column a ranking was built on always comes back, whatever the stat
+    // filter says — a top-ten by home runs with no home runs in it is unusable.
+    const keys = resolveStatKeys(group, args.stats, {
+      full: context?.full,
+      extra: [sort],
+    });
+
+    const { kind: _kind, ...result } = await this.sports.getStats(
       sport,
       Object.assign(new StatsQueryDto(), {
         season: asString(args.season),
         week: asNumber(args.week),
-        group,
+        group: groupKey,
         position: asString(args.position),
         scoring: asString(args.scoring),
         sort,
@@ -97,25 +116,28 @@ export class LeaderboardTool implements FantasyTool {
     return {
       ...result,
       rows: result.rows.map(
-        ({ player, gamesPlayed, fantasyPoints, fantasyPointsPerGame, stats }) => ({
-          ...player,
+        ({
+          player,
           gamesPlayed,
           fantasyPoints,
           fantasyPointsPerGame,
           stats,
+        }) => ({
+          ...player,
+          gamesPlayed,
+          fantasyPoints,
+          fantasyPointsPerGame,
+          stats: pickStats(stats, keys),
         }),
       ),
     };
   }
 }
 
-const assertSortable = (
-  catalog: SportCatalog,
-  groupKey: string | undefined,
-  sort: string,
-) => {
-  const group =
-    catalog.groups.find(({ key }) => key === groupKey) ?? catalog.groups[0];
+const resolveGroup = (catalog: SportCatalog, groupKey: string | undefined) =>
+  catalog.groups.find(({ key }) => key === groupKey) ?? catalog.groups[0];
+
+const assertSortable = (group: StatGroup | undefined, sort: string) => {
   if (!group) return;
 
   const computed = Object.values(COMPUTED_SORT_KEYS);

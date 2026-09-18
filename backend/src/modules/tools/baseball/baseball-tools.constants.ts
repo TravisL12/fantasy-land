@@ -19,7 +19,7 @@ export const START_DATE_PARAM = {
 
 export const END_DATE_PARAM = {
   type: 'string',
-  description: `Last day to cover, as YYYY-MM-DD. Defaults to ${SCHEDULE_DEFAULTS.days} days from the start, and at most ${SCHEDULE_DEFAULTS.maxDays} days are allowed.`,
+  description: `Last day to cover, as YYYY-MM-DD. Defaults to ${SCHEDULE_DEFAULTS.days} days from the start; ${SCHEDULE_DEFAULTS.maxDays} is the most allowed.`,
 } as const;
 
 export const TEAM_PARAM = {
@@ -43,12 +43,12 @@ export const SERIES_DATE_PARAMS = {
   startDate: {
     type: 'string',
     description:
-      'Only count games on or after this date, as YYYY-MM-DD. Leave both dates out for the whole season.',
+      'Only games on or after this date (YYYY-MM-DD). Leave both out for the whole season.',
   },
   endDate: {
     type: 'string',
     description:
-      'Only count games on or before this date, as YYYY-MM-DD. Pass both dates to measure team stats over that interval too.',
+      'Only games on or before this date. Pass both to measure team stats over that interval too.',
   },
 } as const;
 
@@ -56,20 +56,21 @@ export const MATCHUP_SIDE_PARAM = {
   type: 'string',
   enum: Object.values(MATCHUP_SIDES),
   description:
-    'Which side to rate the matchup for: "pitching" for pitchers facing that team\'s lineup, "hitting" for hitters facing that team\'s staff.',
+    'Which side to rate for: "pitching" when the player facing them is a pitcher, "hitting" when they are a batter.',
 } as const;
 
 export const AVAILABILITY_PARAM = {
   type: 'array',
   items: { type: 'string', enum: Object.values(AVAILABILITY) },
-  description: `Availability values to include. Defaults to ${AVAILABILITY.injured} and ${AVAILABILITY.inactive}, i.e. players who cannot play right now.`,
+  description: `Which to include. Defaults to ${AVAILABILITY.injured} and ${AVAILABILITY.inactive} — players who cannot play right now.`,
 } as const;
 
 /**
- * Maxima are bounded by MAX_TOOL_RESULT_CHARS, not by taste: a start costs
- * ~850 serialized characters, so a higher cap would only truncate itself.
+ * Maxima are bounded by MAX_TOOL_RESULT_CHARS, not by taste: a row that does
+ * not fit would only truncate itself. tools.limits.spec.ts checks them against
+ * rows built from the real stat definitions.
  */
-export const PROBABLES_LIMIT = { default: 20, max: 30 } as const;
+export const MATCHUP_LIMIT = { default: 30, max: 30 } as const;
 export const STARTS_LIMIT = { default: 20, max: 25 } as const;
 export const STATUS_LIMIT = { default: 25, max: 100 } as const;
 

@@ -7,7 +7,7 @@ import { MLB_GROUPS } from '../sports/providers/mlb/mlb.constants.js';
 import { STAT_FORMATS } from '../sports/sports.constants.js';
 import type { StatGroup } from '../sports/sports.types.js';
 import {
-  PROBABLES_LIMIT,
+  MATCHUP_LIMIT,
   STARTS_LIMIT,
   STATUS_LIMIT,
 } from './baseball/baseball-tools.constants.js';
@@ -79,6 +79,10 @@ describe('tool limits fit inside MAX_TOOL_RESULT_CHARS', () => {
    * group would model a row that cannot exist (~23.7k chars against ~13.5k
    * measured live) and would fail on headroom we actually have.
    */
+  /**
+   * The worst case is a model that names every stat key: the default is the
+   * group's headline stats, but `stats` may ask for all of them.
+   */
   it('get_leaderboard at its maximum (mlb, widest stat group)', () => {
     const group = widestGroup(MLB_GROUPS);
     const row = {
@@ -91,21 +95,18 @@ describe('tool limits fit inside MAX_TOOL_RESULT_CHARS', () => {
     expectFits(LEADERBOARD_LIMIT, row, `get_leaderboard (mlb/${group.key})`);
   });
 
+  /**
+   * The chat-facing shape: a start carries the matchup score and grade it is
+   * compared on, not the per-metric breakdown. Sizing this against the full
+   * rating would reserve room for fields the model is never sent.
+   */
   it('get_pitcher_starts at its maximum', () => {
     const start = {
       date: '2026-09-16',
       opponent: 'LAD',
       isHome: true,
       confidence: 'projected',
-      matchup: {
-        score: 62.5,
-        grade: 'good',
-        metrics: [
-          { key: 'ops', label: 'OPS', value: 0.712, rank: 62.5 },
-          { key: 'runsPerGame', label: 'Runs per game', value: 4.321, rank: 55.1 },
-          { key: 'strikeoutRate', label: 'Strikeout rate', value: 0.234, rank: 71.2 },
-        ],
-      },
+      matchup: { score: 62.5, grade: 'good' },
     };
     expectFits(
       STARTS_LIMIT,
@@ -114,25 +115,20 @@ describe('tool limits fit inside MAX_TOOL_RESULT_CHARS', () => {
     );
   });
 
-  it('get_probable_pitchers at its maximum', () => {
+  it('get_matchup_ratings at its maximum', () => {
     expectFits(
-      PROBABLES_LIMIT,
+      MATCHUP_LIMIT,
       {
-        player,
-        date: '2026-09-16',
-        opponent: 'LAD',
-        isHome: true,
-        confidence: 'confirmed',
-        matchup: {
-          score: 62.5,
-          grade: 'good',
-          metrics: [
-            { key: 'ops', label: 'OPS', value: 0.712, rank: 62.5 },
-            { key: 'runsPerGame', label: 'Runs per game', value: 4.321, rank: 55.1 },
-          ],
-        },
+        team: 'LAD',
+        score: 62.5,
+        grade: 'good',
+        metrics: [
+          { key: 'ops', value: 0.712, rank: 62.5 },
+          { key: 'runsPerGame', value: 4.321, rank: 55.1 },
+          { key: 'strikeoutRate', value: 0.234, rank: 71.2 },
+        ],
       },
-      'get_probable_pitchers',
+      'get_matchup_ratings',
     );
   });
 

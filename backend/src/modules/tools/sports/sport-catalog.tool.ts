@@ -15,7 +15,7 @@ export class SportCatalogTool implements FantasyTool {
     name: 'get_sport_catalog',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'The valid keys for a sport: seasons, current week, stat groups, positions, stat keys and scoring presets. Call this before get_leaderboard if you are unsure what a filter should be.',
+      'The valid keys for a sport: seasons, current week, stat groups, positions, stat keys and scoring presets. Call this when unsure what a group, position, stat or scoring argument should be.',
     parameters: {
       type: 'object',
       properties: { sport: SPORT_PARAM },

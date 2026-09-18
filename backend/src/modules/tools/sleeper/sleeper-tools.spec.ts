@@ -1,7 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import type { SportsService } from '../../sports/sports.service.js';
 import { SleeperUserService } from './sleeper.service.js';
-import { SleeperUserInfoTool } from './user-info.tool.js';
 import { SleeperUserLeaguesTool } from './user-leagues.tool.js';
 
 const user = { user_id: '123', username: 'travis', display_name: 'Travis' };
@@ -33,24 +32,42 @@ const mockSleeper = (bodies: Record<string, unknown>) => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe('get_user_info', () => {
-  const tool = new SleeperUserInfoTool(new SleeperUserService());
+describe('get_user_leagues', () => {
+  const tool = new SleeperUserLeaguesTool(new SleeperUserService(), sports);
 
-  it('returns the user id for a username', async () => {
-    mockSleeper({ '/user/travis': user });
+  it('defaults to the current NFL season', async () => {
+    const paths = mockSleeper({
+      '/user/travis': user,
+      '/user/123/leagues/nfl/2026': [league],
+    });
 
-    await expect(tool.execute({ username_or_id: 'travis' })).resolves.toEqual({
-      user_id: '123',
-      username: 'travis',
-      display_name: 'Travis',
+    await expect(tool.execute({ user_id: 'travis' })).resolves.toMatchObject({
+      season: '2026',
+      leagues: [{ league_id: 'L1', name: 'The League' }],
+    });
+    expect(paths).toContain('/user/123/leagues/nfl/2026');
+  });
+
+  // It absorbed get_user_info, so the id chain is one call, not two.
+  it('returns the user_id a username resolved to', async () => {
+    mockSleeper({
+      '/user/travis': user,
+      '/user/123/leagues/nfl/2026': [league],
+    });
+
+    await expect(tool.execute({ user_id: 'travis' })).resolves.toMatchObject({
+      user: { user_id: '123', username: 'travis', display_name: 'Travis' },
     });
   });
 
   it('accepts the username under any of the keys a model might use', async () => {
-    mockSleeper({ '/user/travis': user });
+    mockSleeper({
+      '/user/travis': user,
+      '/user/123/leagues/nfl/2026': [league],
+    });
 
     await expect(tool.execute({ username: 'travis' })).resolves.toMatchObject({
-      user_id: '123',
+      user: { user_id: '123' },
     });
   });
 
@@ -71,26 +88,9 @@ describe('get_user_info', () => {
   it('explains that the username was not found', async () => {
     mockSleeper({});
 
-    await expect(tool.execute({ username_or_id: 'nope' })).rejects.toThrow(
+    await expect(tool.execute({ user_id: 'nope' })).rejects.toThrow(
       NotFoundException,
     );
-  });
-});
-
-describe('get_user_leagues', () => {
-  const tool = new SleeperUserLeaguesTool(new SleeperUserService(), sports);
-
-  it('defaults to the current NFL season', async () => {
-    const paths = mockSleeper({
-      '/user/travis': user,
-      '/user/123/leagues/nfl/2026': [league],
-    });
-
-    await expect(tool.execute({ user_id: 'travis' })).resolves.toMatchObject({
-      season: '2026',
-      leagues: [{ league_id: 'L1', name: 'The League' }],
-    });
-    expect(paths).toContain('/user/123/leagues/nfl/2026');
   });
 
   it('falls back to the previous season when the current one is empty', async () => {

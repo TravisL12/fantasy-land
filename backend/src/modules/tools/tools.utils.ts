@@ -1,7 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { clamp } from '../../common/math/number.js';
 import { SPORT_KEYS } from '../sports/sports.constants.js';
-import type { SportKey } from '../sports/sports.types.js';
+import type { SportKey, StatGroup } from '../sports/sports.types.js';
+import { TOOL_MESSAGES } from './tools.constants.js';
 import type { ToolLimit } from './tools.types.js';
 
 export { clamp };
@@ -88,3 +89,59 @@ export const asLimit = (
   { default: fallback, max }: ToolLimit,
   min = 1,
 ) => clamp(asNumber(value) ?? fallback, min, max);
+
+/** "true"/"1"/"yes" as well as a real boolean — small models send all three. */
+export const asFlag = (value: unknown): boolean =>
+  value === true || ['true', '1', 'yes'].includes(String(value).toLowerCase());
+
+/**
+ * Which stat keys a result should carry.
+ *
+ * A stat group defines twenty-odd stats and every row repeats all of them, so
+ * an unfiltered leaderboard spends most of its characters on stats nobody
+ * asked about. The group's own `defaultStats` is the curated subset, so that is
+ * what a chat turn gets; `stats` overrides it with exactly the keys requested,
+ * and a dashboard (`full`) gets everything unless it asks for less.
+ *
+ * `extra` is for keys the answer would be wrong without — the leaderboard's
+ * sort key above all, since a ranking whose column is missing reads as
+ * arbitrary. Returns undefined when nothing should be filtered out.
+ */
+export const resolveStatKeys = (
+  group: StatGroup | undefined,
+  requested: unknown,
+  { full = false, extra = [] }: { full?: boolean; extra?: (string | undefined)[] } = {},
+): Set<string> | undefined => {
+  const asked = asStringArray(requested);
+  const defined = group?.stats.map(({ key }) => key) ?? [];
+
+  if (asked.length) {
+    const unknown = defined.length
+      ? asked.filter((key) => !defined.includes(key))
+      : [];
+    if (unknown.length) {
+      throw new BadRequestException(
+        TOOL_MESSAGES.unknownStats(unknown, group?.key ?? '', defined),
+      );
+    }
+    return new Set([...asked, ...keep(extra)]);
+  }
+
+  if (full || !group) return undefined;
+  return new Set([...group.defaultStats, ...keep(extra)]);
+};
+
+const keep = (values: (string | undefined)[]) =>
+  values.filter((value): value is string => Boolean(value));
+
+/** Narrows a stats object to the chosen keys, dropping the rest wholesale. */
+export const pickStats = <T>(
+  stats: Record<string, T> | undefined,
+  keys: Set<string> | undefined,
+): Record<string, T> => {
+  if (!stats) return {};
+  if (!keys) return stats;
+  return Object.fromEntries(
+    Object.entries(stats).filter(([key]) => keys.has(key)),
+  );
+};

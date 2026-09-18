@@ -17,7 +17,7 @@ export class TeamHeadToHeadTool implements FantasyTool {
     name: 'compare_teams',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Head-to-head between two teams across a season or an interval of it: every game they played each other with the final score and winner, the series record, and each team\'s hitting and pitching over that same window with a matchup grade for facing them. Use this for "how have the Yankees done against the Red Sox", series previews, and judging which lineup or staff has been better lately.',
+      'Head-to-head between two teams over a season or an interval: every game they played with the final score and winner, the series record, and each side\'s hitting and pitching across the same window with a grade for facing them. Use it for series previews and "how have the Yankees done against the Red Sox".',
     parameters: {
       type: 'object',
       properties: {

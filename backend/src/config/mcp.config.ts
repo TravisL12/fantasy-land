@@ -31,15 +31,21 @@ const require = createRequire(import.meta.url);
  * numbers, competing with the scoring engine the rest of the app is built on.
  * Drop an entry to hand it back to the model.
  *
- * Tools shadowed by a local one of the same name (`compare_players`,
- * `get_user_info`, `get_user_leagues`) are already filtered out by
- * `ToolRegistry`, so they are deliberately not repeated here.
+ * `get_user_info` is listed because our own tool of that name was folded into
+ * get_user_leagues: with nothing shadowing it, the server's version — which
+ * reads fields off the `null` body Sleeper returns for an unknown user and
+ * throws an opaque TypeError — would come back into the model's prompt.
+ *
+ * Tools still shadowed by a local one of the same name (`compare_players`,
+ * `get_user_leagues`) are filtered out by `ToolRegistry`, so they are
+ * deliberately not repeated here.
  */
 export const SLEEPER_DENIED_TOOLS = [
   'clear_cache',
   'analyze_lineup',
   'get_start_sit_advice',
   'get_waiver_suggestions',
+  'get_user_info',
 ] as const;
 
 /**

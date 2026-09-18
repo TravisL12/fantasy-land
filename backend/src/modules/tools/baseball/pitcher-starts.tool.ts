@@ -1,9 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { SPORT_KEYS } from '../../sports/sports.constants.js';
-import { SportsService } from '../../sports/sports.service.js';
-import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
-import type { FantasyTool, ToolDefinition } from '../tools.types.js';
 import {
+  SPORT_KEYS,
+  START_CONFIDENCE,
+} from '../../sports/sports.constants.js';
+import { SportsService } from '../../sports/sports.service.js';
+import type { StartsReport } from '../../sports/sports.types.js';
+import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
+import type {
+  FantasyTool,
+  ToolContext,
+  ToolDefinition,
+} from '../tools.types.js';
+import {
+  asFlag,
   asLimit,
   asNumber,
   asSport,
@@ -12,14 +21,21 @@ import {
 } from '../tools.utils.js';
 import {
   BASEBALL_SPORT_PARAM,
+  BASEBALL_TOOL_MESSAGES,
   END_DATE_PARAM,
-  START_DATE_PARAM,
   STARTS_LIMIT,
+  START_DATE_PARAM,
+  TEAM_PARAM,
 } from './baseball-tools.constants.js';
+import { compactMatchup } from './baseball-tools.utils.js';
 
 /**
- * The two-start question. Announced probables are exact; the rest is projected
- * from each pitcher's rest pattern, which the result labels per start.
+ * Every "who is pitching, and when" question.
+ *
+ * This absorbed get_probable_pitchers, which asked the same service for the
+ * same window and differed only in keeping the announced starts — that is now
+ * `confirmedOnly`. Two tools over one date range made the model pick between
+ * them on wording ("tonight" vs "this week") rather than on what it needed.
  */
 @Injectable()
 export class PitcherStartsTool implements FantasyTool {
@@ -27,8 +43,7 @@ export class PitcherStartsTool implements FantasyTool {
     name: 'get_pitcher_starts',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'How many times each starting pitcher is expected to pitch over a date range, with each start rated against the opposing lineup. Use this for two-start week planning and weekly streaming. Every start is marked "confirmed" (announced by the league) or "projected" (inferred from the pitcher\'s rest pattern) — say which when you answer, and never present a projected start as certain. Pass playerIds whenever you know which pitchers matter: without them the result only covers pitchers whose next start is already announced, and the returned coverageNote explains what was missed. ' +
-      'Each pitcher carries "starts" (one entry per start, with date, opponent, isHome, confidence and a matchup rating), "confirmedStarts" — how many of them are announced rather than projected — and "matchupScore", the mean 0-100 matchup across the window, which is how to compare two two-start pitchers.',
+      'Starting pitchers over a date range, grouped by pitcher, each start rated against the lineup it faces. Use it for "who is pitching tonight" (a one-day range, or confirmedOnly), streaming, and two-start weeks (minStarts 2). Each start is "confirmed" (announced by the league) or "projected" (inferred from the pitcher\'s rest pattern) — pass that distinction on and never state a projected start as fact. Pass playerIds when the question names pitchers; without them only pitchers with an announced start are covered, as coverageNote explains. Compare pitchers on matchupScore, the mean 0-100 matchup across the window.',
     parameters: {
       type: 'object',
       properties: {
@@ -39,12 +54,18 @@ export class PitcherStartsTool implements FantasyTool {
           type: 'array',
           items: { type: 'string' },
           description:
-            'Specific pitcher ids from find_player. Give these when the question is about named pitchers — they get their real measured rest pattern. Omit to sweep every pitcher with an announced start.',
+            'Pitcher ids from find_player. Give these when the question names pitchers — they get their real measured rest pattern.',
         },
+        team: TEAM_PARAM,
         minStarts: {
           type: 'integer',
           description:
-            'Only return pitchers with at least this many starts in the range. Pass 2 to find two-start pitchers.',
+            'Only pitchers with at least this many starts in the range. Pass 2 for two-start pitchers.',
+        },
+        confirmedOnly: {
+          type: 'boolean',
+          description:
+            'Drop projected starts and keep only what the league has announced (roughly four days out).',
         },
         limit: {
           type: 'integer',
@@ -56,9 +77,11 @@ export class PitcherStartsTool implements FantasyTool {
 
   constructor(private readonly sports: SportsService) {}
 
-  async execute(args: Record<string, unknown>) {
+  async execute(args: Record<string, unknown>, context?: ToolContext) {
     const minStarts = asNumber(args.minStarts) ?? 1;
     const limit = asLimit(args.limit, STARTS_LIMIT);
+    const confirmedOnly = asFlag(args.confirmedOnly);
+    const team = asString(args.team)?.toUpperCase();
 
     const result = await this.sports.getStarts(
       asSport(args.sport, SPORT_KEYS.mlb),
@@ -70,14 +93,31 @@ export class PitcherStartsTool implements FantasyTool {
       },
     );
 
-    const pitchers = result.pitchers.filter(
-      ({ starts }) => starts.length >= minStarts,
-    );
+    const pitchers = result.pitchers
+      .map((pitcher): StartsReport => {
+        if (!confirmedOnly) return pitcher;
+        const starts = pitcher.starts.filter(
+          ({ confidence }) => confidence === START_CONFIDENCE.confirmed,
+        );
+        return { ...pitcher, starts, confirmedStarts: starts.length };
+      })
+      .filter(
+        ({ player, starts }) =>
+          starts.length >= minStarts && (!team || player.team === team),
+      );
 
     return {
       ...result,
       total: pitchers.length,
-      pitchers: pitchers.slice(0, limit),
+      pitchers: pitchers.slice(0, limit).map((pitcher) => ({
+        ...pitcher,
+        starts: pitcher.starts.map((start) => ({
+          ...start,
+          matchup: compactMatchup(start.matchup, context?.full),
+        })),
+      })),
+      ...(pitchers.length === 0 &&
+        confirmedOnly && { note: BASEBALL_TOOL_MESSAGES.noProbables }),
     };
   }
 }

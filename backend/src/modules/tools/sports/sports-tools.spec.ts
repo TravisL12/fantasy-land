@@ -8,9 +8,11 @@ import type { SportsService } from '../../sports/sports.service.js';
 import { ComparePlayersTool } from './compare-players.tool.js';
 import { FindPlayerTool } from './find-player.tool.js';
 import { LeaderboardTool } from './leaderboard.tool.js';
-import { LEADERBOARD_LIMIT } from './sports-tools.constants.js';
-import { PlayerGameLogTool } from './player-game-log.tool.js';
-import { PlayerSeasonStatsTool } from './player-season-stats.tool.js';
+import { PlayerStatsTool } from './player-stats.tool.js';
+import {
+  GAME_LOG_LIMIT,
+  LEADERBOARD_LIMIT,
+} from './sports-tools.constants.js';
 
 const vele = { id: '11834', name: 'Devaughn Vele', team: 'NO', position: 'WR' };
 
@@ -60,14 +62,28 @@ const playerStatsResponse: PlayerStatsResponseDto = {
 };
 
 const sportsStub = (
-  groups: { key: string; stats?: { key: string }[] }[] = [
-    { key: 'offense', stats: [{ key: 'rec' }, { key: 'rec_yd' }] },
+  groups: {
+    key: string;
+    stats?: { key: string }[];
+    defaultStats?: string[];
+  }[] = [
+    {
+      key: 'offense',
+      stats: [{ key: 'rec' }, { key: 'rec_yd' }],
+      defaultStats: ['rec', 'rec_yd'],
+    },
   ],
 ) =>
   ({
     getStats: vi.fn().mockResolvedValue(statsResponse),
     getPlayerStats: vi.fn().mockResolvedValue(playerStatsResponse),
-    getCatalog: vi.fn().mockResolvedValue({ groups }),
+    getCatalog: vi.fn().mockResolvedValue({
+      groups: groups.map((group) => ({
+        stats: [],
+        defaultStats: [],
+        ...group,
+      })),
+    }),
   }) as unknown as SportsService;
 
 describe('sports tools', () => {
@@ -145,9 +161,9 @@ describe('sports tools', () => {
     });
   });
 
-  describe('get_player_season_stats', () => {
-    it('returns totals and consistency without the game log', async () => {
-      const result = await new PlayerSeasonStatsTool(sportsStub()).execute({
+  describe('get_player_stats', () => {
+    it('returns totals and consistency, without the game log, by default', async () => {
+      const result = await new PlayerStatsTool(sportsStub()).execute({
         playerId: '11834',
       });
 
@@ -157,21 +173,26 @@ describe('sports tools', () => {
         fantasyPoints: 66.3,
         pointsPerGame: 5.1,
       });
-      expect(result).not.toHaveProperty('entries');
       expect(result).not.toHaveProperty('games');
+      expect(result).not.toHaveProperty('form');
     });
 
-    it('requires a player id', async () => {
-      await expect(
-        new PlayerSeasonStatsTool(sportsStub()).execute({}),
-      ).rejects.toBeInstanceOf(BadRequestException);
-    });
-  });
-
-  describe('get_player_game_log', () => {
-    it('returns only the last N games when asked', async () => {
-      const result = (await new PlayerGameLogTool(sportsStub()).execute({
+    // fantasyPoints and pointsPerGame are these two numbers; a second copy
+    // inside consistency reads to a model as a second measurement.
+    it('does not repeat the headline numbers inside consistency', async () => {
+      const result = (await new PlayerStatsTool(sportsStub()).execute({
         playerId: '11834',
+      })) as { consistency: Record<string, number> };
+
+      expect(result.consistency).not.toHaveProperty('total');
+      expect(result.consistency).not.toHaveProperty('average');
+      expect(result.consistency).toMatchObject({ floor: 0, ceiling: 12.4 });
+    });
+
+    it('adds the game log only when asked, and caps it', async () => {
+      const result = (await new PlayerStatsTool(sportsStub()).execute({
+        playerId: '11834',
+        include: ['games'],
         lastN: 3,
       })) as { games: { week: number }[] };
 
@@ -179,12 +200,73 @@ describe('sports tools', () => {
     });
 
     it('coerces a stringified number, as small models often send', async () => {
-      const result = (await new PlayerGameLogTool(sportsStub()).execute({
+      const result = (await new PlayerStatsTool(sportsStub()).execute({
         playerId: '11834',
+        include: 'games',
         lastN: '2',
-      })) as { games: { week: number }[] };
+      })) as { games: unknown[] };
 
       expect(result.games).toHaveLength(2);
+    });
+
+    it('keeps a chat game log short and gives a dashboard the whole thing', async () => {
+      const tool = new PlayerStatsTool(sportsStub());
+
+      const chat = (await tool.execute({
+        playerId: '11834',
+        include: ['games'],
+      })) as { games: unknown[] };
+      expect(chat.games).toHaveLength(GAME_LOG_LIMIT.default);
+
+      const dashboard = (await tool.execute(
+        { playerId: '11834', include: ['games'] },
+        { full: true },
+      )) as { games: unknown[] };
+      expect(dashboard.games).toHaveLength(13);
+    });
+
+    it('measures form against the season when asked for it', async () => {
+      const result = (await new PlayerStatsTool(sportsStub()).execute({
+        playerId: '11834',
+        include: ['form'],
+      })) as { form: { window: number; recent: { average: number }; trend: string } };
+
+      // The splits keep their own average — the trend is the difference.
+      expect(result.form.recent.average).toEqual(expect.any(Number));
+      expect(result.form.trend).toEqual(expect.any(String));
+    });
+
+    it('rejects an include value it does not have a section for', async () => {
+      await expect(
+        new PlayerStatsTool(sportsStub()).execute({
+          playerId: '11834',
+          include: ['projections'],
+        }),
+      ).rejects.toThrow(/Unknown "include" value "projections"/);
+    });
+
+    it('requires a player id', async () => {
+      await expect(
+        new PlayerStatsTool(sportsStub()).execute({}),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('narrows the stats to the keys asked for', async () => {
+      const result = (await new PlayerStatsTool(sportsStub()).execute({
+        playerId: '11834',
+        stats: ['rec_yd'],
+      })) as { totals: Record<string, number> };
+
+      expect(result.totals).toEqual({ rec_yd: 293 });
+    });
+
+    it('names the valid keys when asked for a stat the group has no such thing as', async () => {
+      await expect(
+        new PlayerStatsTool(sportsStub()).execute({
+          playerId: '11834',
+          stats: ['touchdowns'],
+        }),
+      ).rejects.toThrow(/Unknown stat key "touchdowns"/);
     });
   });
 
@@ -218,6 +300,62 @@ describe('sports tools', () => {
       expect(vi.mocked(sports.getStats)).toHaveBeenCalledTimes(2);
     });
 
+    it('returns only the group\'s headline stats to a chat turn', async () => {
+      const sports = sportsStub([
+        {
+          key: 'offense',
+          stats: [{ key: 'rec' }, { key: 'rec_yd' }],
+          defaultStats: ['rec'],
+        },
+      ]);
+
+      const result = (await new LeaderboardTool(sports).execute({})) as {
+        rows: { stats: Record<string, number> }[];
+      };
+
+      expect(result.rows[0].stats).toEqual({ rec: 25 });
+    });
+
+    it('gives a dashboard every stat, since it renders them', async () => {
+      const sports = sportsStub([
+        {
+          key: 'offense',
+          stats: [{ key: 'rec' }, { key: 'rec_yd' }],
+          defaultStats: ['rec'],
+        },
+      ]);
+
+      const result = (await new LeaderboardTool(sports).execute(
+        {},
+        { full: true },
+      )) as { rows: { stats: Record<string, number> }[] };
+
+      expect(result.rows[0].stats).toEqual({ rec: 25, rec_yd: 293 });
+    });
+
+    // A top ten by receiving yards with no receiving yards in it is unusable.
+    it('keeps the column it ranked by even when it is outside the defaults', async () => {
+      const sports = sportsStub([
+        {
+          key: 'offense',
+          stats: [{ key: 'rec' }, { key: 'rec_yd' }],
+          defaultStats: ['rec'],
+        },
+      ]);
+
+      const result = (await new LeaderboardTool(sports).execute({
+        sort: 'rec_yd',
+      })) as { rows: { stats: Record<string, number> }[] };
+
+      expect(result.rows[0].stats).toEqual({ rec: 25, rec_yd: 293 });
+    });
+
+    it('drops the internal "kind" field the model has no use for', async () => {
+      const result = await new LeaderboardTool(sportsStub()).execute({});
+
+      expect(result).not.toHaveProperty('kind');
+    });
+
     it('passes filters through and flattens the rows', async () => {
       const sports = sportsStub();
       const result = (await new LeaderboardTool(sports).execute({
@@ -248,6 +386,7 @@ describe('sports tools', () => {
     const compareStub = () =>
       ({
         comparePlayers: vi.fn().mockResolvedValue(comparison),
+        getCatalog: vi.fn().mockResolvedValue({ groups: [] }),
       }) as unknown as SportsService;
 
     it('passes the players and scoring through to the comparison', async () => {
@@ -257,7 +396,7 @@ describe('sports tools', () => {
         scoring: 'ppr',
       });
 
-      expect(result).toBe(comparison);
+      expect(result).toMatchObject({ bestPointsPerGame: 'Devaughn Vele' });
       expect(vi.mocked(sports.comparePlayers)).toHaveBeenCalledWith(
         'nfl',
         ['11834', '9509'],

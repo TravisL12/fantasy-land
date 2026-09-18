@@ -18,7 +18,7 @@ export class FindPlayerTool implements FantasyTool {
     name: 'find_player',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Find players by name and return their id, team and position. Use this first to turn a player name into a player id.',
+      'Find players by name and return their id, team and position. Use this first to turn a name into a player id.',
     parameters: {
       type: 'object',
       properties: {
@@ -31,7 +31,7 @@ export class FindPlayerTool implements FantasyTool {
         group: {
           type: 'string',
           description:
-            'Restrict the search to one stat group, e.g. "pitching". Omit to search every group, which is usually what you want.',
+            'Restrict the search to one stat group. Omit to search every group, which is usually what you want.',
         },
         limit: {
           type: 'integer',

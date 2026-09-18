@@ -6,13 +6,18 @@ import {
 import { SportsService } from '../../sports/sports.service.js';
 import type { MatchupSide } from '../../sports/sports.types.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
-import type { FantasyTool, ToolDefinition } from '../tools.types.js';
+import type {
+  FantasyTool,
+  ToolContext,
+  ToolDefinition,
+} from '../tools.types.js';
 import { asLimit, asSport, asString } from '../tools.utils.js';
 import {
   BASEBALL_SPORT_PARAM,
   MATCHUP_SIDE_PARAM,
-  PROBABLES_LIMIT,
+  MATCHUP_LIMIT,
 } from './baseball-tools.constants.js';
+import { compactMetrics } from './baseball-tools.utils.js';
 
 /** Which teams are the softest to face — the input to any streaming decision. */
 @Injectable()
@@ -21,7 +26,7 @@ export class MatchupRatingsTool implements FantasyTool {
     name: 'get_matchup_ratings',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Rank every team by how good a matchup they are to face, from 0 (brutal) to 100 (great), based on their season-to-date production. Use this to judge whether a streamer has a soft matchup, or to find which lineups to attack. Ask for side "pitching" when the player facing them is a pitcher, "hitting" when they are a batter.',
+      'Rank every team by how good a matchup they are to face, 0 (brutal) to 100 (great), from their season-to-date production, with the metrics behind each rating. Use it to judge a streamer\'s matchup or to find the lineups to attack.',
     parameters: {
       type: 'object',
       properties: {
@@ -33,7 +38,7 @@ export class MatchupRatingsTool implements FantasyTool {
         },
         limit: {
           type: 'integer',
-          description: `How many teams to return, best matchup first (default all 30, max ${PROBABLES_LIMIT.max}).`,
+          description: `How many teams, best matchup first (default all ${MATCHUP_LIMIT.default}).`,
         },
       },
     },
@@ -41,7 +46,7 @@ export class MatchupRatingsTool implements FantasyTool {
 
   constructor(private readonly sports: SportsService) {}
 
-  async execute(args: Record<string, unknown>) {
+  async execute(args: Record<string, unknown>, context?: ToolContext) {
     const side = (asString(args.side) ??
       MATCHUP_SIDES.pitching) as MatchupSide;
     const result = await this.sports.getMatchupBoard(
@@ -52,9 +57,17 @@ export class MatchupRatingsTool implements FantasyTool {
 
     const limit = asLimit(args.limit, {
       default: result.teams.length,
-      max: PROBABLES_LIMIT.max,
+      max: MATCHUP_LIMIT.max,
     });
 
-    return { ...result, teams: result.teams.slice(0, limit) };
+    return {
+      ...result,
+      teams: result.teams
+        .slice(0, limit)
+        .map(({ team, ...rating }) => ({
+          team,
+          ...compactMetrics(rating, context?.full),
+        })),
+    };
   }
 }

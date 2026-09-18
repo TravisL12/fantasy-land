@@ -24,7 +24,7 @@ export class PlayerStatusTool implements FantasyTool {
     name: 'get_player_status',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Look up roster availability — active, injured (with the specific injured-list wording), in the minors, or otherwise unavailable. Use this before recommending anyone to start, add or trade for, and to answer "is X hurt". Pass a name to check one player, or filter by team to see a whole club.',
+      'Roster availability — active, injured (with the league\'s own injured-list wording), in the minors, or otherwise out. Check it before recommending anyone to start, add or trade for. Pass a name for one player, or a team for a whole club.',
     parameters: {
       type: 'object',
       properties: {
@@ -38,7 +38,7 @@ export class PlayerStatusTool implements FantasyTool {
         availability: AVAILABILITY_PARAM,
         limit: {
           type: 'integer',
-          description: `How many players to return (default ${STATUS_LIMIT.default}, max ${STATUS_LIMIT.max}).`,
+          description: `How many to return (default ${STATUS_LIMIT.default}, max ${STATUS_LIMIT.max}).`,
         },
       },
     },

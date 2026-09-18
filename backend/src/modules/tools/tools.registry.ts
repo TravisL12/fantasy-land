@@ -3,7 +3,12 @@ import { toErrorMessage } from '../../common/errors/error-message.js';
 import { serializeToolResult } from '../../common/text/truncate.js';
 import { McpService } from '../mcp/mcp.service.js';
 import { FANTASY_TOOLS, TOOL_MESSAGES } from './tools.constants.js';
-import type { FantasyTool, ToolDefinition, ToolResult } from './tools.types.js';
+import type {
+  FantasyTool,
+  ToolContext,
+  ToolDefinition,
+  ToolResult,
+} from './tools.types.js';
 
 /**
  * The one tool list the model sees: this codebase's own tools plus everything
@@ -76,7 +81,9 @@ export class ToolRegistry {
     if (!tool) return { error: TOOL_MESSAGES.unknownTool(name) };
 
     try {
-      return { data: await tool.execute(args) };
+      // `full`: a dashboard renders every field it is given, so the compact
+      // projection a chat turn gets would only lose columns.
+      return { data: await tool.execute(args, { full: true }) };
     } catch (error) {
       const message = toErrorMessage(error);
       this.logger.warn(`Tool "${name}" failed: ${message}`);
@@ -88,10 +95,11 @@ export class ToolRegistry {
     name: string,
     tool: FantasyTool,
     args: Record<string, unknown>,
+    context?: ToolContext,
   ): Promise<ToolResult> {
     try {
       return {
-        text: serializeToolResult(await tool.execute(args)),
+        text: serializeToolResult(await tool.execute(args, context)),
         isError: false,
       };
     } catch (error) {
