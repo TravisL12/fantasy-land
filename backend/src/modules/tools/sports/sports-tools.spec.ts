@@ -81,6 +81,7 @@ const sportsStub = (
 ) =>
   ({
     getStats: vi.fn().mockResolvedValue(statsResponse),
+    searchPlayerDirectory: vi.fn().mockResolvedValue([]),
     getPlayerStats: vi.fn().mockResolvedValue(playerStatsResponse),
     getCatalog: vi.fn().mockResolvedValue({
       groups: groups.map((group) => ({
@@ -106,6 +107,88 @@ describe('sports tools', () => {
         'nfl',
         expect.objectContaining({ search: 'vele' }),
       );
+    });
+
+    it('falls back to the league directory for a player with no stats yet', async () => {
+      const sports = sportsStub();
+      vi.mocked(sports.getStats).mockResolvedValue({
+        ...statsResponse,
+        rows: [],
+      });
+      vi.mocked(sports.searchPlayerDirectory).mockResolvedValue([
+        {
+          id: '12345',
+          name: 'Rookie Receiver',
+          team: 'CLE',
+          position: 'WR',
+          group: 'offense',
+          status: 'Active',
+          availability: 'active',
+          rank: 180,
+        },
+      ]);
+
+      const result = await new FindPlayerTool(sports).execute({
+        query: 'rookie',
+      });
+
+      expect(result.players).toEqual([
+        {
+          id: '12345',
+          name: 'Rookie Receiver',
+          team: 'CLE',
+          position: 'WR',
+          group: 'offense',
+          status: 'Active',
+          availability: 'active',
+          gamesPlayed: 0,
+        },
+      ]);
+    });
+
+    it('puts players who have actually played ahead of directory-only ones', async () => {
+      const sports = sportsStub();
+      vi.mocked(sports.searchPlayerDirectory).mockResolvedValue([
+        {
+          id: '12345',
+          name: 'Devaughn Velez',
+          team: 'CLE',
+          position: 'WR',
+          group: 'offense',
+          status: 'Active',
+          availability: 'active',
+          rank: 1,
+        },
+      ]);
+
+      const result = await new FindPlayerTool(sports).execute({
+        query: 'vele',
+      });
+
+      expect(result.players.map(({ name }) => name)).toEqual([
+        'Devaughn Vele',
+        'Devaughn Velez',
+      ]);
+    });
+
+    it('does not list a player twice when both sources know them', async () => {
+      const sports = sportsStub();
+      vi.mocked(sports.searchPlayerDirectory).mockResolvedValue([
+        {
+          ...vele,
+          group: 'offense',
+          status: 'Active',
+          availability: 'active',
+          rank: 90,
+        },
+      ]);
+
+      const result = await new FindPlayerTool(sports).execute({
+        query: 'vele',
+      });
+
+      expect(result.players).toHaveLength(1);
+      expect(result.players[0].gamesPlayed).toBe(13);
     });
 
     it('tells the model when nothing matched', async () => {

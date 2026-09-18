@@ -57,22 +57,28 @@ export class FindPlayerTool implements FantasyTool {
       ? [requestedGroup]
       : catalog.groups.map(({ key }) => key);
 
-    const results = await Promise.all(
-      groups.map((group) =>
-        this.sports.getStats(
-          sport,
-          Object.assign(new StatsQueryDto(), {
-            season: args.season ? String(args.season) : undefined,
-            search: query,
-            group,
-            limit,
-          }),
+    const [results, directory] = await Promise.all([
+      Promise.all(
+        groups.map((group) =>
+          this.sports.getStats(
+            sport,
+            Object.assign(new StatsQueryDto(), {
+              season: args.season ? String(args.season) : undefined,
+              search: query,
+              group,
+              limit,
+            }),
+          ),
         ),
       ),
-    );
+      // Whoever has not played yet is invisible to a stat-line search, and
+      // "who is the Browns' rookie receiver" is a real question. The directory
+      // is one cached daily payload, so asking it costs nothing per search.
+      this.sports.searchPlayerDirectory(sport, query, limit),
+    ]);
 
     const seen = new Set<string>();
-    const players = results
+    const played = results
       .flatMap(({ group, rows }) =>
         rows.map(({ player, gamesPlayed }) => ({
           ...player,
@@ -82,8 +88,16 @@ export class FindPlayerTool implements FantasyTool {
       )
       // A two-way player appears in both groups; the busier line is the useful one.
       .sort((a, b) => b.gamesPlayed - a.gamesPlayed)
+      .filter(({ id }) => !seen.has(id) && seen.add(id));
+
+    // Players with stats first: they are what a stats question is usually
+    // about. The rest carry their roster status, so the model can say why
+    // there are no numbers instead of reporting the player as missing.
+    const unplayed = directory
       .filter(({ id }) => !seen.has(id) && seen.add(id))
-      .slice(0, limit);
+      .map(({ rank: _rank, ...player }) => ({ ...player, gamesPlayed: 0 }));
+
+    const players = [...played, ...unplayed].slice(0, limit);
 
     if (players.length === 0) {
       throw new NotFoundException(SPORTS_TOOL_MESSAGES.noMatches(query));

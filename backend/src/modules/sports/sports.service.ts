@@ -41,6 +41,7 @@ import {
 import type {
   DataKind,
   DateRange,
+  DirectoryPlayer,
   ExpectedPointsLine,
   ExpectedPointsModel,
   FormReport,
@@ -65,7 +66,9 @@ import type {
 import {
   assertRange,
   matchKey,
+  matchPlayers,
   providesLeagueData,
+  providesPlayerDirectory,
   providesOpportunityStats,
   resolveDateRange,
 } from './sports.utils.js';
@@ -312,6 +315,23 @@ export class SportsService {
       total: rows.length,
       rows: rows.slice(offset, offset + limit),
     };
+  }
+
+  /**
+   * Name search against the league's own player list, which includes players
+   * who have not scored a point this season — rookies, the just-signed, the
+   * injured. A sport whose provider has no directory returns nothing rather
+   * than failing, since the caller has stat-line matches either way.
+   */
+  async searchPlayerDirectory(
+    sport: SportKey,
+    query: string,
+    limit: number,
+  ): Promise<DirectoryPlayer[]> {
+    const provider = this.provider(sport);
+    if (!providesPlayerDirectory(provider)) return [];
+
+    return matchPlayers(await provider.getPlayerDirectory(), query, limit);
   }
 
   /** Games in a window, with each announced starter's matchup rated. */

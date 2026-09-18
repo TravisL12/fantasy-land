@@ -192,10 +192,21 @@ describe('tool limits fit inside MAX_TOOL_RESULT_CHARS', () => {
     );
   });
 
+  /**
+   * The widest find_player row is a directory-only one: a player with no stats
+   * carries their roster status and availability instead.
+   */
   it('find_player at its maximum', () => {
     expectFits(
       FIND_PLAYER_LIMIT,
-      { ...player, group: 'pitching', gamesPlayed: 32, fantasyPoints: 1234.56 },
+      {
+        ...player,
+        group: 'pitching',
+        gamesPlayed: 32,
+        fantasyPoints: 1234.56,
+        status: 'Physically Unable to Perform',
+        availability: 'injured',
+      },
       'find_player',
     );
   });

@@ -5,8 +5,10 @@ import {
   SPORTS_MESSAGES,
 } from './sports.constants.js';
 import type {
+  DirectoryPlayer,
   LeagueDataProvider,
   OpportunityProvider,
+  PlayerDirectoryProvider,
   SportProvider,
   StatDefinition,
   StatGroup,
@@ -16,6 +18,11 @@ import type {
 export const providesLeagueData = (
   provider: SportProvider,
 ): provider is LeagueDataProvider => 'getSchedule' in provider;
+
+/** Narrows a provider to the optional whole-league player list. */
+export const providesPlayerDirectory = (
+  provider: SportProvider,
+): provider is PlayerDirectoryProvider => 'getPlayerDirectory' in provider;
 
 /** Narrows a provider to the optional expected-points capability. */
 export const providesOpportunityStats = (
@@ -148,4 +155,65 @@ const statKeyIndex = (group: StatGroup) => {
 
   statKeyIndexes.set(group, index);
   return index;
+};
+
+/**
+ * A name as a person types it, reduced to letters and digits. Accents are
+ * folded first, so "Amon-Ra" matches "amonra" and "Ekelér" matches "ekeler" —
+ * a search that only works when the apostrophe is in the right place is not a
+ * search a model or a person can use.
+ */
+const flattenName = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
+/**
+ * How well a directory entry answers a name, best first. The tiers matter more
+ * than they look: searching "Allen" should reach Josh Allen before every
+ * player whose name merely contains the letters, and a full-name match should
+ * beat a surname one.
+ */
+const nameScore = (name: string, query: string) => {
+  const flat = flattenName(name);
+  const words = name.split(/\s+/).map(flattenName);
+
+  if (flat === query) return 0;
+  // A whole name someone actually goes by beats a longer name that merely
+  // starts the same way: "chase" is Ja'Marr Chase, not Chasen Hines.
+  if (words.includes(query)) return 1;
+  if (flat.startsWith(query)) return 2;
+  if (words.some((word) => word.startsWith(query))) return 3;
+  return flat.includes(query) ? 4 : Infinity;
+};
+
+/**
+ * Players whose name matches, best match first. Ties break on upstream's own
+ * relevance ranking rather than the alphabet, so a search for a shared surname
+ * answers with the starter rather than whoever sorts first; entries upstream
+ * never ranked sink below those it did.
+ */
+export const matchPlayers = (
+  players: DirectoryPlayer[],
+  query: string,
+  limit: number,
+): DirectoryPlayer[] => {
+  const flat = flattenName(query);
+  if (!flat) return [];
+
+  return players
+    .flatMap((player) => {
+      const score = nameScore(player.name, flat);
+      return score === Infinity ? [] : [{ player, score }];
+    })
+    .sort(
+      (a, b) =>
+        a.score - b.score ||
+        (a.player.rank ?? Infinity) - (b.player.rank ?? Infinity) ||
+        a.player.name.localeCompare(b.player.name),
+    )
+    .slice(0, limit)
+    .map(({ player }) => player);
 };

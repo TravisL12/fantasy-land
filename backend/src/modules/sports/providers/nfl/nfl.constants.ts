@@ -1,9 +1,11 @@
 import {
+  AVAILABILITY,
   DATA_KINDS,
   SPORT_KEYS,
   STAT_FORMATS,
 } from '../../sports.constants.js';
 import type {
+  Availability,
   ScoringPreset,
   ScoringRules,
   StatGroup,
@@ -14,6 +16,34 @@ const { decimal, percent } = STAT_FORMATS;
 
 export const SLEEPER_API = 'https://api.sleeper.com';
 export const SLEEPER_STATE_URL = 'https://api.sleeper.app/v1/state/nfl';
+/**
+ * The whole league in one payload (~14MB, ~12k players). Sleeper asks that it
+ * be pulled at most once a day, so it is cached for a day and normalized down
+ * to the fantasy-eligible players before it is stored.
+ */
+export const SLEEPER_PLAYERS_URL = 'https://api.sleeper.app/v1/players/nfl';
+
+/** Positions worth keeping from the directory; the rest never score points. */
+export const NFL_FANTASY_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
+
+/**
+ * Upstream roster and game-status wording, mapped onto the availability
+ * vocabulary every sport shares. A practice-squad player is "in the minors"
+ * in the only sense this app cares about: not on the active roster.
+ */
+export const NFL_AVAILABILITY: Record<string, Availability> = {
+  Active: AVAILABILITY.active,
+  Inactive: AVAILABILITY.inactive,
+  'Injured Reserve': AVAILABILITY.injured,
+  'Physically Unable to Perform': AVAILABILITY.injured,
+  'Non Football Injury': AVAILABILITY.injured,
+  'Practice Squad': AVAILABILITY.minors,
+  'Practice Squad Injured': AVAILABILITY.injured,
+  Reserve: AVAILABILITY.inactive,
+};
+
+/** A game-status designation overrides an otherwise active roster status. */
+export const NFL_INJURY_STATUSES = ['IR', 'Out', 'Doubtful', 'PUP', 'NA'];
 export const SLEEPER_SEASON_TYPE = 'regular';
 export const NFL_FIRST_SEASON = 2018;
 export const NFL_REGULAR_SEASON_WEEKS = 18;

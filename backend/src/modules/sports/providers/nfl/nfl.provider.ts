@@ -8,9 +8,11 @@ import {
   SPORTS_CACHE_VERSION,
 } from '../../sports.constants.js';
 import type {
+  DirectoryPlayer,
   GameLog,
   GameLogQuery,
   OpportunityProvider,
+  PlayerDirectoryProvider,
   SportCatalog,
   StatLine,
   StatLinesQuery,
@@ -22,6 +24,7 @@ import {
   NFL_OPPORTUNITY_STATS,
   NFL_REGULAR_SEASON_WEEKS,
   SLEEPER_API,
+  SLEEPER_PLAYERS_URL,
   SLEEPER_SEASON_TYPE,
   SLEEPER_STATE_URL,
 } from './nfl.constants.js';
@@ -29,11 +32,13 @@ import { findGroup, seasonRange } from '../provider.utils.js';
 import {
   aggregateStatLines,
   groupForPosition,
+  mapDirectory,
   mapStatLines,
   mapWeeklyLog,
   toPlayerRef,
 } from './nfl.mapper.js';
 import type {
+  SleeperDirectory,
   SleeperPlayerInfo,
   SleeperStatEntry,
   SleeperState,
@@ -48,7 +53,9 @@ const cacheKey = (...parts: (string | number | undefined)[]) =>
   ].join(':');
 
 @Injectable()
-export class NflProvider implements OpportunityProvider {
+export class NflProvider
+  implements OpportunityProvider, PlayerDirectoryProvider
+{
   readonly key = SPORT_KEYS.nfl;
   readonly opportunityStats = NFL_OPPORTUNITY_STATS;
 
@@ -124,21 +131,26 @@ export class NflProvider implements OpportunityProvider {
     return Array.from({ length: last }, (_, i) => i + 1);
   }
 
+  /**
+   * The league's whole player list, refreshed at most once a day — the rate
+   * upstream asks for, and enough for a roster that changes with signings and
+   * injuries rather than with the ball. `DataCacheService` keeps it in memory,
+   * backs it with Postgres so a restart does not re-pull 14MB, and serves the
+   * last copy if upstream is down.
+   */
+  getPlayerDirectory(): Promise<DirectoryPlayer[]> {
+    return this.cache.wrap(cacheKey('directory'), CACHE_TTL.daily, async () =>
+      mapDirectory(await fetchJson<SleeperDirectory>(SLEEPER_PLAYERS_URL)),
+    );
+  }
+
   async getGameLog({
     playerId,
     season,
   }: GameLogQuery): Promise<GameLog | null> {
-    const info = await this.cache.wrap(
-      cacheKey('player', playerId),
-      CACHE_TTL.daily,
-      () =>
-        fetchJson<SleeperPlayerInfo | null>(
-          `${SLEEPER_API}/players/nfl/${encodeURIComponent(playerId)}`,
-        ),
-    );
-    if (!info) return null;
+    const player = await this.playerRef(playerId);
+    if (!player) return null;
 
-    const player = toPlayerRef(playerId, info);
     const statGroup = findGroup(NFL_GROUPS, groupForPosition(player.position));
     const ttl = await this.ttlForSeason(season);
     const entries = await this.cache.wrap(
@@ -155,6 +167,31 @@ export class NflProvider implements OpportunityProvider {
     );
 
     return { player, group: statGroup.key, entries };
+  }
+
+  /**
+   * Who a player id belongs to. The directory answers for anyone who can
+   * score, so the per-player fetch is only reached for the rest — which is the
+   * point of holding the whole list: one daily request in place of one per
+   * player looked up.
+   */
+  private async playerRef(playerId: string) {
+    const directory = await this.getPlayerDirectory();
+    const known = directory.find(({ id }) => id === playerId);
+    if (known) {
+      const { id, name, team, position } = known;
+      return { id, name, team, position };
+    }
+
+    const info = await this.cache.wrap(
+      cacheKey('player', playerId),
+      CACHE_TTL.daily,
+      () =>
+        fetchJson<SleeperPlayerInfo | null>(
+          `${SLEEPER_API}/players/nfl/${encodeURIComponent(playerId)}`,
+        ),
+    );
+    return info ? toPlayerRef(playerId, info) : null;
   }
 
   private getState() {

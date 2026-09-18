@@ -115,6 +115,34 @@ export interface SportProvider {
 }
 
 /**
+ * A player as the league's own directory lists them, whether or not they have
+ * played: the entry a name search resolves against.
+ */
+export interface DirectoryPlayer extends PlayerRef {
+  /** Stat group they would be scored in, from their position. */
+  group: string;
+  /** Upstream wording, e.g. "Injured Reserve"; null when it says nothing. */
+  status: string | null;
+  availability: Availability;
+  /**
+   * Upstream's own relevance ranking, lower being more relevant. Two players
+   * share a surname and only one of them is a starter; without this a search
+   * answers with whichever the alphabet put first.
+   */
+  rank: number | null;
+}
+
+/**
+ * Optional provider capability: the league's full player list, cached whole
+ * rather than fetched a player at a time. Sleeper asks that its ~12k-player
+ * payload be pulled at most once a day, which is exactly what a provider with
+ * this capability promises to honour.
+ */
+export interface PlayerDirectoryProvider extends SportProvider {
+  getPlayerDirectory(): Promise<DirectoryPlayer[]>;
+}
+
+/**
  * Optional provider capability: which stats count as *opportunities* for each
  * stat group, so the expected-points engine can be fit without knowing a thing
  * about the sport. A provider whose upstream does not publish opportunity

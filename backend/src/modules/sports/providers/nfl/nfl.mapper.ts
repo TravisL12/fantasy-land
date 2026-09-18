@@ -1,14 +1,24 @@
-import { DATA_KINDS } from '../../sports.constants.js';
+import { AVAILABILITY, DATA_KINDS } from '../../sports.constants.js';
 import type {
+  Availability,
   DataKind,
+  DirectoryPlayer,
   GameLogEntry,
   PlayerRef,
   StatGroup,
   StatLine,
 } from '../../sports.types.js';
 import { pickStats } from '../provider.utils.js';
-import { NFL_DERIVED_RATES, NFL_GROUP_KEYS } from './nfl.constants.js';
+import {
+  NFL_AVAILABILITY,
+  NFL_DERIVED_RATES,
+  NFL_FANTASY_POSITIONS,
+  NFL_GROUP_KEYS,
+  NFL_INJURY_STATUSES,
+} from './nfl.constants.js';
 import type {
+  SleeperDirectory,
+  SleeperDirectoryEntry,
   SleeperPlayerInfo,
   SleeperStatEntry,
   SleeperWeeklyLog,
@@ -31,6 +41,56 @@ export const groupForPosition = (position: string | null) => {
   if (position === 'DEF') return NFL_GROUP_KEYS.defense;
   return NFL_GROUP_KEYS.offense;
 };
+
+/**
+ * A game-status designation beats the roster status: a player whose team still
+ * lists them Active but who is Out this week is not available to start.
+ */
+const availabilityOf = ({
+  status,
+  injury_status: injury,
+}: SleeperDirectoryEntry): Availability => {
+  if (injury && NFL_INJURY_STATUSES.includes(injury)) {
+    return AVAILABILITY.injured;
+  }
+  return NFL_AVAILABILITY[status ?? ''] ?? AVAILABILITY.inactive;
+};
+
+/**
+ * The league's whole player list, cut down to the players who can score in a
+ * fantasy lineup. Upstream ships ~12k entries and 14MB, most of it linemen,
+ * scouting fields and third-party ids we never read; what is cached is this
+ * projection, about 400KB, in keeping with caching normalized data rather than
+ * raw payloads.
+ */
+export const mapDirectory = (directory: SleeperDirectory): DirectoryPlayer[] =>
+  Object.entries(directory).flatMap(([id, entry]): DirectoryPlayer[] => {
+    if (!entry) return [];
+
+    const positions = entry.fantasy_positions ?? [];
+    if (!positions.some((position) => NFL_FANTASY_POSITIONS.includes(position))) {
+      return [];
+    }
+
+    const name =
+      entry.full_name?.trim() ||
+      [entry.first_name, entry.last_name].filter(Boolean).join(' ');
+    if (!name) return [];
+
+    const position = entry.position ?? positions[0] ?? null;
+    return [
+      {
+        id: entry.player_id ?? id,
+        name,
+        team: entry.team ?? null,
+        position,
+        group: groupForPosition(position),
+        status: entry.status ?? null,
+        availability: availabilityOf(entry),
+        rank: entry.search_rank ?? null,
+      },
+    ];
+  });
 
 /** Sleeper returns rows for every rostered player; keep only ones with data. */
 const hasData = (entry: SleeperStatEntry, kind: DataKind, week?: number) =>

@@ -17,6 +17,21 @@ export interface SleeperPlayerInfo {
   team: string | null;
 }
 
+/** One entry in the bulk `/players/nfl` payload. */
+export interface SleeperDirectoryEntry extends SleeperPlayerInfo {
+  full_name?: string | null;
+  fantasy_positions?: string[] | null;
+  /** Roster status in upstream's wording, e.g. "Active", "Injured Reserve". */
+  status?: string | null;
+  /** Game-status designation, e.g. "Questionable", "Out", "IR". */
+  injury_status?: string | null;
+  /** Upstream's relevance ranking; lower is more relevant. */
+  search_rank?: number | null;
+}
+
+/** The whole league, keyed by player id. */
+export type SleeperDirectory = Record<string, SleeperDirectoryEntry | null>;
+
 export interface SleeperStatEntry {
   player_id: string;
   team: string | null;

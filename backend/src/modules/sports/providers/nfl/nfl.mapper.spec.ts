@@ -3,10 +3,14 @@ import { NFL_GROUPS } from './nfl.constants.js';
 import {
   aggregateStatLines,
   groupForPosition,
+  mapDirectory,
   mapStatLines,
   mapWeeklyLog,
 } from './nfl.mapper.js';
-import type { SleeperStatEntry } from './nfl.types.js';
+import type {
+  SleeperDirectoryEntry,
+  SleeperStatEntry,
+} from './nfl.types.js';
 
 const [offense] = NFL_GROUPS;
 
@@ -108,5 +112,76 @@ describe('NFL mapper', () => {
     expect(groupForPosition('K')).toBe('kicking');
     expect(groupForPosition('DEF')).toBe('defense');
     expect(groupForPosition('WR')).toBe('offense');
+  });
+});
+
+describe('mapDirectory', () => {
+  const entry = (
+    overrides: Partial<SleeperDirectoryEntry> = {},
+  ): SleeperDirectoryEntry => ({
+    player_id: '4984',
+    first_name: 'Josh',
+    last_name: 'Allen',
+    full_name: 'Josh Allen',
+    position: 'QB',
+    team: 'BUF',
+    fantasy_positions: ['QB'],
+    status: 'Active',
+    search_rank: 4,
+    ...overrides,
+  });
+
+  it('keeps only players who can score in a lineup', () => {
+    const players = mapDirectory({
+      '1': entry(),
+      '2': entry({ player_id: '2', position: 'OL', fantasy_positions: ['OL'] }),
+      '3': entry({ player_id: '3', position: 'K', fantasy_positions: ['K'] }),
+      // Upstream really does return null values in this payload.
+      '4': null,
+    });
+
+    expect(players.map(({ id }) => id)).toEqual(['4984', '3']);
+  });
+
+  it('files each player in the group their position scores in', () => {
+    const [kicker] = mapDirectory({
+      '1': entry({ position: 'K', fantasy_positions: ['K'] }),
+    });
+
+    expect(kicker.group).toBe('kicking');
+  });
+
+  it('normalizes roster wording onto shared availability', () => {
+    const [ir] = mapDirectory({
+      '1': entry({ status: 'Injured Reserve' }),
+    });
+    const [squad] = mapDirectory({
+      '1': entry({ status: 'Practice Squad' }),
+    });
+
+    expect(ir.availability).toBe('injured');
+    expect(ir.status).toBe('Injured Reserve');
+    expect(squad.availability).toBe('minors');
+  });
+
+  it('lets a game-status designation override an active roster spot', () => {
+    const [out] = mapDirectory({
+      '1': entry({ status: 'Active', injury_status: 'Out' }),
+    });
+    const [questionable] = mapDirectory({
+      '1': entry({ status: 'Active', injury_status: 'Questionable' }),
+    });
+
+    expect(out.availability).toBe('injured');
+    // Questionable is a warning, not an absence: he is still expected to play.
+    expect(questionable.availability).toBe('active');
+  });
+
+  it('falls back to the name parts when there is no full name', () => {
+    const [player] = mapDirectory({
+      '1': entry({ full_name: null }),
+    });
+
+    expect(player.name).toBe('Josh Allen');
   });
 });
