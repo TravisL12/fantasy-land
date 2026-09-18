@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { toErrorMessage } from '../../common/errors/error-message.js';
 import { serializeToolResult } from '../../common/text/truncate.js';
+import { OLLAMA_WARMUP_MODES } from '../../config/config.constants.js';
 import { ToolRegistry } from '../tools/tools.registry.js';
 import type { FantasyTool, ToolDefinition, ToolResult } from '../tools/tools.types.js';
 import { SportsService } from '../sports/sports.service.js';
@@ -51,11 +52,28 @@ export class ChatService implements OnApplicationBootstrap {
     private readonly sports: SportsService,
   ) {}
 
+  /**
+   * Boot pays only the costs that hold no memory — starting the MCP servers and
+   * resolving the season catalogs. Loading the model waits for someone to open
+   * the chat page, so an app nobody is talking to holds no GPU memory. Fire and
+   * forget: a slow or absent Ollama must not hold up or fail boot.
+   */
   onApplicationBootstrap(): void {
-    if (!this.ollama.settings.warmup) return;
-    // Fire and forget: a model that is slow to load, or an Ollama that is not
-    // running at all, must not hold up or fail boot.
-    void this.warmUp();
+    const { warmup } = this.ollama.settings;
+    if (warmup === OLLAMA_WARMUP_MODES.off) return;
+
+    void (warmup === OLLAMA_WARMUP_MODES.boot
+      ? this.warmUp()
+      : this.prepare().catch(() => undefined));
+  }
+
+  /** The cold starts that cost no memory, so they are safe to pay at boot. */
+  private async prepare(): Promise<ToolDefinition[]> {
+    const [tools] = await Promise.all([
+      this.tools.listTools(),
+      this.sports.getCatalogs().catch(() => []),
+    ]);
+    return tools;
   }
 
   /**
@@ -65,7 +83,9 @@ export class ChatService implements OnApplicationBootstrap {
    * Never rejects — a failed warm-up just means the first question is slow.
    */
   warmUp(base: string = SYSTEM_PROMPT): Promise<void> {
-    if (!this.ollama.settings.warmup) return Promise.resolve();
+    if (this.ollama.settings.warmup === OLLAMA_WARMUP_MODES.off) {
+      return Promise.resolve();
+    }
     // A warm-up mid-conversation would queue ahead of the user's own turn, and
     // the model is loaded with the right prefix cached anyway.
     if (this.activeRuns > 0) return Promise.resolve();
@@ -82,7 +102,7 @@ export class ChatService implements OnApplicationBootstrap {
   private async runWarmUp(base: string): Promise<void> {
     const startedAt = Date.now();
     try {
-      const tools = (await this.tools.listTools()).map(toOllamaTool);
+      const tools = (await this.prepare()).map(toOllamaTool);
       const messages: ChatMessage[] = [
         { role: CHAT_ROLES.system, content: await this.systemPrompt(base) },
       ];

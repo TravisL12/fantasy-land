@@ -8,7 +8,12 @@ import {
   DEFAULT_OLLAMA_NUM_CTX,
   DEFAULT_OLLAMA_TEMPERATURE,
   DEFAULT_OLLAMA_TIMEOUT_MS,
+  DEFAULT_OLLAMA_WARMUP_MODE,
+  OLLAMA_WARMUP_MODES,
 } from './config.constants.js';
+
+export type OllamaWarmupMode =
+  (typeof OLLAMA_WARMUP_MODES)[keyof typeof OLLAMA_WARMUP_MODES];
 
 export interface ChatConfig {
   baseUrl: string;
@@ -23,9 +28,15 @@ export interface ChatConfig {
   think: boolean;
   /** How long Ollama holds the model in memory after a request ("30m", "-1"). */
   keepAlive: string;
-  /** Prefill the prompt on boot and when the chat page opens. */
-  warmup: boolean;
+  /** When to load the model and prefill the prompt: page open, boot, or never. */
+  warmup: OllamaWarmupMode;
 }
+
+/** An unrecognised value falls back rather than failing boot over a typo. */
+const warmupMode = (value: string | undefined): OllamaWarmupMode =>
+  value && value in OLLAMA_WARMUP_MODES
+    ? OLLAMA_WARMUP_MODES[value as OllamaWarmupMode]
+    : DEFAULT_OLLAMA_WARMUP_MODE;
 
 const number = (value: string | undefined, fallback: number) => {
   const parsed = Number(value);
@@ -49,6 +60,6 @@ export const chatConfig = registerAs(
     ),
     think: process.env.OLLAMA_THINK === 'true',
     keepAlive: process.env.OLLAMA_KEEP_ALIVE ?? DEFAULT_OLLAMA_KEEP_ALIVE,
-    warmup: process.env.OLLAMA_WARMUP !== 'false',
+    warmup: warmupMode(process.env.OLLAMA_WARMUP),
   }),
 );

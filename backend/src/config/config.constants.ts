@@ -27,11 +27,25 @@ export const DEFAULT_OLLAMA_NUM_CTX = 65_536;
 export const DEFAULT_OLLAMA_TIMEOUT_MS = 300_000;
 export const DEFAULT_CHAT_MAX_TOOL_ROUNDS = 6;
 /**
- * How long Ollama keeps the model resident after a request. Its own default is
- * 5 minutes, after which the next question pays the weight load again — and
- * loses the prefix cache holding our system prompt and tool schemas.
+ * How long Ollama keeps the model resident after a request. Residency is not
+ * free — a 9b at q4 with a 64k context holds ~7GB for the whole window, and
+ * there is no state where the memory is released but answers stay fast. So
+ * this only has to cover *absence*: the chat page pings while it is open, which
+ * is what keeps the model hot while someone is actually there. "-1" pins it.
  */
-export const DEFAULT_OLLAMA_KEEP_ALIVE = '30m';
+export const DEFAULT_OLLAMA_KEEP_ALIVE = '5m';
+
+/**
+ * Where the model warm-up is triggered. "page" loads it when the chat page is
+ * opened, so an idle app holds no memory; "boot" also loads it at startup, for
+ * a machine with memory to spare; "off" leaves the first question to pay.
+ */
+export const OLLAMA_WARMUP_MODES = {
+  page: 'page',
+  boot: 'boot',
+  off: 'off',
+} as const;
+export const DEFAULT_OLLAMA_WARMUP_MODE = OLLAMA_WARMUP_MODES.page;
 
 export const MCP_CONFIG_KEY = 'mcp';
 

@@ -1,4 +1,5 @@
 import { combineReducers, configureStore } from '@reduxjs/toolkit';
+import { setupListeners } from '@reduxjs/toolkit/query';
 import { baseApi } from '@/api/baseApi';
 import { loadPersistedState, savePersistedState } from './persistence';
 import { statColumnsReducer } from './slices/statColumns';
@@ -16,6 +17,11 @@ export const makeStore = (preloadedState?: Partial<RootState>) =>
   });
 
 export const store = makeStore(loadPersistedState());
+
+// Focus tracking for RTK Query. No endpoint opts into refetchOnFocus, so this
+// only powers `skipPollingIfUnfocused` — a backgrounded tab stops pinging the
+// chat status, and stops holding the model in memory with it.
+setupListeners(store.dispatch);
 
 let lastStatColumns = store.getState().statColumns;
 store.subscribe(() => {

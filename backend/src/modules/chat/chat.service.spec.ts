@@ -10,7 +10,7 @@ import type { OllamaChatChunk } from './ollama.types.js';
 const settings = {
   model: 'test-model',
   maxToolRounds: 3,
-  warmup: true,
+  warmup: 'page',
 } as ChatConfig;
 
 const content = (text: string): OllamaChatChunk => ({
@@ -70,7 +70,7 @@ describe('ChatService', () => {
         { key: 'mlb', defaultSeason: '2026', currentWeek: null },
       ]),
     } as unknown as SportsService;
-    return { service: new ChatService(ollama, tools, sports), callTool };
+    return { service: new ChatService(ollama, tools, sports), callTool, tools };
   };
 
   it('streams tokens and finishes when the model stops calling tools', async () => {
@@ -252,6 +252,44 @@ describe('ChatService', () => {
     const { service } = build(ollama);
 
     await expect(service.warmUp()).resolves.toBeUndefined();
+  });
+
+  it('boots without loading the model, so an idle app holds no memory', () => {
+    const ollama = stubOllama([]);
+    const { service, tools } = build(ollama);
+
+    service.onApplicationBootstrap();
+
+    // The MCP servers and season catalogs still start early — they cost no VRAM.
+    expect(tools.listTools).toHaveBeenCalled();
+    expect(ollama.warm).not.toHaveBeenCalled();
+  });
+
+  it('loads the model at boot when asked to', async () => {
+    const ollama = stubOllama([]);
+    vi.spyOn(ollama, 'settings', 'get').mockReturnValue({
+      ...settings,
+      warmup: 'boot',
+    } as ChatConfig);
+    const { service } = build(ollama);
+
+    service.onApplicationBootstrap();
+    await vi.waitFor(() => expect(ollama.warm).toHaveBeenCalled());
+  });
+
+  it('does not warm at all when warm-up is off', async () => {
+    const ollama = stubOllama([]);
+    vi.spyOn(ollama, 'settings', 'get').mockReturnValue({
+      ...settings,
+      warmup: 'off',
+    } as ChatConfig);
+    const { service, tools } = build(ollama);
+
+    service.onApplicationBootstrap();
+    await service.warmUp();
+
+    expect(tools.listTools).not.toHaveBeenCalled();
+    expect(ollama.warm).not.toHaveBeenCalled();
   });
 
   it('skips warming while a conversation is running', async () => {
