@@ -12,6 +12,10 @@ import {
   STATUS_LIMIT,
 } from './baseball/baseball-tools.constants.js';
 import {
+  EXPECTED_POINTS_LIMIT,
+  EXPECTED_POINTS_METHOD,
+} from './football/football-tools.constants.js';
+import {
   FIND_PLAYER_LIMIT,
   LEADERBOARD_LIMIT,
 } from './sports/sports-tools.constants.js';
@@ -61,8 +65,17 @@ const fits = (rows: unknown[], extra: Record<string, unknown> = {}) => {
   return { truncated: text.includes(`"${TRUNCATION_KEY}"`), chars: text.length };
 };
 
-const expectFits = (limit: ToolLimit, row: unknown, label: string) => {
-  const { truncated, chars } = fits(Array.from({ length: limit.max }, () => row));
+const expectFits = (
+  limit: ToolLimit,
+  row: unknown,
+  label: string,
+  /** Everything the result carries beside the rows, which is not free either. */
+  extra: Record<string, unknown> = {},
+) => {
+  const { truncated, chars } = fits(
+    Array.from({ length: limit.max }, () => row),
+    extra,
+  );
   expect(
     truncated,
     `${label}: ${limit.max} rows serialize to ${chars} chars, over the ${MAX_TOOL_RESULT_CHARS} cap. ` +
@@ -144,6 +157,38 @@ describe('tool limits fit inside MAX_TOOL_RESULT_CHARS', () => {
         availability: 'injured',
       },
       'get_player_status',
+    );
+  });
+
+  /**
+   * An expected-points row carries no stats object in a chat turn, but it does
+   * carry eight computed numbers, and the result pays for the method note and
+   * one model summary per position on top of the rows.
+   */
+  it('get_expected_points at its maximum', () => {
+    expectFits(
+      EXPECTED_POINTS_LIMIT,
+      {
+        ...player,
+        gamesPlayed: 17,
+        fantasyPoints: 234.56,
+        pointsPerGame: 13.8,
+        expectedPoints: 212.34,
+        expectedPointsPerGame: 12.5,
+        delta: 22.22,
+        deltaPerGame: 1.3,
+        efficiency: 1.1,
+        model: 'WR',
+      },
+      'get_expected_points',
+      {
+        method: EXPECTED_POINTS_METHOD,
+        models: ['QB', 'RB', 'WR', 'TE'].map((position) => ({
+          position,
+          observations: 120,
+          rSquared: 0.86,
+        })),
+      },
     );
   });
 

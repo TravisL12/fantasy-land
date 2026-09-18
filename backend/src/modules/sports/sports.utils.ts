@@ -6,6 +6,7 @@ import {
 } from './sports.constants.js';
 import type {
   LeagueDataProvider,
+  OpportunityProvider,
   SportProvider,
   StatDefinition,
   StatGroup,
@@ -15,6 +16,11 @@ import type {
 export const providesLeagueData = (
   provider: SportProvider,
 ): provider is LeagueDataProvider => 'getSchedule' in provider;
+
+/** Narrows a provider to the optional expected-points capability. */
+export const providesOpportunityStats = (
+  provider: SportProvider,
+): provider is OpportunityProvider => 'opportunityStats' in provider;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

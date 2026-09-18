@@ -10,8 +10,8 @@ import {
 import type {
   GameLog,
   GameLogQuery,
+  OpportunityProvider,
   SportCatalog,
-  SportProvider,
   StatLine,
   StatLinesQuery,
 } from '../../sports.types.js';
@@ -19,6 +19,7 @@ import {
   NFL_CATALOG_BASE,
   NFL_FIRST_SEASON,
   NFL_GROUPS,
+  NFL_OPPORTUNITY_STATS,
   NFL_REGULAR_SEASON_WEEKS,
   SLEEPER_API,
   SLEEPER_SEASON_TYPE,
@@ -47,8 +48,9 @@ const cacheKey = (...parts: (string | number | undefined)[]) =>
   ].join(':');
 
 @Injectable()
-export class NflProvider implements SportProvider {
+export class NflProvider implements OpportunityProvider {
   readonly key = SPORT_KEYS.nfl;
+  readonly opportunityStats = NFL_OPPORTUNITY_STATS;
 
   constructor(private readonly cache: DataCacheService) {}
 

@@ -152,7 +152,7 @@ export const MAX_WEEK = 22;
 export const SEARCH_MAX_LENGTH = 50;
 
 /** Bump to invalidate every cached, normalized payload after a mapper change. */
-export const SPORTS_CACHE_VERSION = 'v5';
+export const SPORTS_CACHE_VERSION = 'v6';
 
 export const SPORTS_MESSAGES = {
   unknownGroup: (group: string) => `Unknown stat group "${group}"`,
@@ -173,8 +173,54 @@ export const SPORTS_MESSAGES = {
   noGamesInWindow:
     'No games fall inside that window — widen it or drop the filters.',
   neverMet: 'These teams have no games against each other in that window.',
+  noOpportunityData: (sport: string) =>
+    `No expected-points model for "${sport}" — the upstream data does not break production down into opportunities. This is only wired up for nfl so far.`,
+  noOpportunityGroup: (group: string, groups: string[]) =>
+    `The "${group}" group has no opportunity model — points there are not opportunity-driven. Use one of: ${groups.join(', ')}.`,
+  unknownExpectedSort: (sort: string, keys: string[]) =>
+    `Cannot sort an expected-points board by "${sort}" — use one of: ${keys.join(', ')}.`,
   endBeforeStart: 'endDate must not be before startDate',
   rangeTooLong: (max: number) => `Ask for at most ${max} days at a time`,
 } as const;
 
 export const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Sort keys for an expected-points board, beyond the raw stat keys. */
+export const EXPECTED_SORT_KEYS = {
+  expectedPoints: 'expectedPoints',
+  expectedPointsPerGame: 'expectedPointsPerGame',
+  fantasyPoints: 'fantasyPoints',
+  pointsPerGame: 'pointsPerGame',
+  delta: 'delta',
+  deltaPerGame: 'deltaPerGame',
+  efficiency: 'efficiency',
+} as const;
+
+/** The pooled model, used for a position with too few players to fit alone. */
+export const EXPECTED_POINTS_POOLED = 'ALL';
+
+export const EXPECTED_POINTS_DEFAULTS = {
+  /**
+   * Fitting on per-game rates from players with almost no sample lets one
+   * fluke game set a weight, so a fit needs a few games and a few dozen
+   * players. Below that the position falls back to the pooled model.
+   */
+  minGames: 3,
+  minObservations: 20,
+  /**
+   * Ridge term. Opportunity counts are strongly correlated with each other
+   * (air yards ride along with targets), which left alone makes the fit swing
+   * between huge offsetting weights. A small penalty keeps them stable
+   * without meaningfully biasing the totals.
+   */
+  ridge: 0.5,
+  /**
+   * Share of a position's players who must actually see an opportunity before
+   * it is priced for them. Below this it is a trick play, not a role.
+   */
+  minCoverage: 0.1,
+  /** Rows the fit is built from, before any position or player filter. */
+  population: 1000,
+  places: 1,
+  weightPlaces: 4,
+} as const;

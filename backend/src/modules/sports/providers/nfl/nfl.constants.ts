@@ -27,6 +27,8 @@ export const NFL_DERIVED_RATES: Record<string, [string, string, number]> = {
   pass_ypa: ['pass_yd', 'pass_att', 1],
   rush_ypa: ['rush_yd', 'rush_att', 1],
   rec_ypr: ['rec_yd', 'rec', 1],
+  adot: ['rec_air_yd', 'rec_tgt', 1],
+  snap_pct: ['off_snp', 'tm_off_snp', 100],
 };
 
 export const NFL_GROUP_KEYS = {
@@ -34,6 +36,29 @@ export const NFL_GROUP_KEYS = {
   kicking: 'kicking',
   defense: 'defense',
 } as const;
+
+/**
+ * The opportunity stats an expected-points model is fit on, per stat group.
+ *
+ * These are the chances a player was given, not what they did with them:
+ * volume plus the two things that change what a chance is worth — how far
+ * downfield it was thrown (air yards) and whether it came in the red zone.
+ * Yards and touchdowns are deliberately absent, since they are the outcome
+ * the model is trying to explain. Only offense has a model; a kicker's or a
+ * defense's points are not opportunity-driven in the same way.
+ */
+export const NFL_OPPORTUNITY_STATS: Record<string, string[]> = {
+  offense: [
+    'rec_tgt',
+    'rec_air_yd',
+    'rec_rz_tgt',
+    'rush_att',
+    'rush_rz_att',
+    'pass_att',
+    'pass_air_yd',
+    'pass_rz_att',
+  ],
+};
 
 export const NFL_GROUPS: StatGroup[] = [
   {
@@ -56,12 +81,22 @@ export const NFL_GROUPS: StatGroup[] = [
       defineStat('rush_td', 'Rushing TDs', 'RUSH TD'),
       defineStat('rush_ypa', 'Yards per carry', 'Y/C', decimal),
       defineStat('rec_tgt', 'Targets', 'TGT'),
+      defineStat('rec_air_yd', 'Air yards', 'AIR', undefined, {
+        aliases: ['receiving air yards'],
+      }),
+      defineStat('adot', 'Average depth of target', 'aDOT', decimal),
       defineStat('rec', 'Receptions', 'REC'),
       defineStat('rec_yd', 'Receiving yards', 'REC YD'),
       defineStat('rec_td', 'Receiving TDs', 'REC TD'),
       defineStat('rec_ypr', 'Yards per reception', 'Y/R', decimal),
       defineStat('rec_rz_tgt', 'Red zone targets', 'RZ TGT'),
       defineStat('rush_rz_att', 'Red zone rushes', 'RZ ATT'),
+      defineStat('pass_rz_att', 'Red zone pass attempts', 'RZ PASS'),
+      defineStat('pass_air_yd', 'Passing air yards', 'PASS AIR'),
+      defineStat('rec_fd', 'Receiving first downs', 'REC FD'),
+      defineStat('rush_fd', 'Rushing first downs', 'RUSH FD'),
+      defineStat('tm_off_snp', 'Team offensive snaps', 'TM SNP'),
+      defineStat('snap_pct', 'Snap share', 'SNP%', percent),
       defineStat('st_td', 'Return TDs', 'RET TD'),
       defineStat('fum_rec_td', 'Fumble recovery TDs', 'FR TD'),
       defineStat('fum_lost', 'Fumbles lost', 'FL', undefined, {

@@ -114,6 +114,16 @@ export interface SportProvider {
   getGameLog(query: GameLogQuery): Promise<GameLog | null>;
 }
 
+/**
+ * Optional provider capability: which stats count as *opportunities* for each
+ * stat group, so the expected-points engine can be fit without knowing a thing
+ * about the sport. A provider whose upstream does not publish opportunity
+ * detail simply omits it, the way LeagueDataProvider is omitted.
+ */
+export interface OpportunityProvider extends SportProvider {
+  readonly opportunityStats: Record<string, string[]>;
+}
+
 export type Availability = ValueOf<typeof AVAILABILITY>;
 export type MatchupSide = ValueOf<typeof MATCHUP_SIDES>;
 export type MatchupGrade = ValueOf<typeof MATCHUP_GRADES>;
@@ -333,4 +343,38 @@ export interface TeamSeries {
   nextMeeting: string | null;
   records: [SeriesRecord, SeriesRecord];
   games: SeriesGame[];
+}
+
+/**
+ * A fitted expected-points model for one position. The weights are measured
+ * from the league itself rather than declared, so they follow the scoring
+ * preset they were fit under: a PPR target is worth more than a standard one
+ * because PPR players really did score more per target.
+ */
+export interface ExpectedPointsModel {
+  /** Position the model was fit for, or ALL for the pooled fallback. */
+  position: string;
+  observations: number;
+  /** Share of the per-game scoring spread the opportunities explain, 0-1. */
+  rSquared: number;
+  /** Fantasy points per unit of each opportunity stat. */
+  weights: StatValues;
+}
+
+/** One player's production measured against the opportunity behind it. */
+export interface ExpectedPointsLine {
+  player: PlayerRef;
+  gamesPlayed: number;
+  fantasyPoints: number;
+  pointsPerGame: number;
+  expectedPoints: number;
+  expectedPointsPerGame: number;
+  /** Actual minus expected: positive means finishing above the opportunity. */
+  delta: number;
+  deltaPerGame: number;
+  /** Actual over expected; 1.0 is exactly what the opportunity implied. */
+  efficiency: number | null;
+  /** Which model produced the expectation, since positions are fit apart. */
+  model: string;
+  opportunities: StatValues;
 }

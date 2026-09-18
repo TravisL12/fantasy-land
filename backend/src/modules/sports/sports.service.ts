@@ -10,6 +10,7 @@ import type {
   PlayerStatsResponseDto,
   StatsResponseDto,
 } from './dto/stats-response.dto.js';
+import { expectedPoints } from './analysis/expected-points.js';
 import { analyzeForm } from './analysis/form.js';
 import { playerHeadToHead, teamSeries } from './analysis/head-to-head.js';
 import { rateMatchups } from './analysis/matchup.js';
@@ -23,6 +24,9 @@ import {
 } from './scoring/scoring.js';
 import {
   COMPUTED_SORT_KEYS,
+  DATA_KINDS,
+  EXPECTED_POINTS_DEFAULTS,
+  EXPECTED_SORT_KEYS,
   FORM_DEFAULTS,
   MATCHUP_SIDES,
   SORT_ORDERS,
@@ -35,7 +39,10 @@ import {
   STARTS_DEFAULTS,
 } from './sports.constants.js';
 import type {
+  DataKind,
   DateRange,
+  ExpectedPointsLine,
+  ExpectedPointsModel,
   FormReport,
   GameWindow,
   MatchupRating,
@@ -59,6 +66,7 @@ import {
   assertRange,
   matchKey,
   providesLeagueData,
+  providesOpportunityStats,
   resolveDateRange,
 } from './sports.utils.js';
 
@@ -86,10 +94,22 @@ export class SportsService {
     return this.provider(sport).getCatalog();
   }
 
-  async getStats(
+  /**
+   * Every player's line for one season/week, scored but not yet filtered,
+   * sorted or paged. A leaderboard narrows it down; an expected-points fit
+   * needs the whole population, since pricing a target off one team's players
+   * is not pricing it off the league.
+   */
+  private async scoreStatLines(
     sport: SportKey,
-    query: StatsQueryDto,
-  ): Promise<StatsResponseDto> {
+    query: {
+      season?: string;
+      week?: number;
+      group?: string;
+      scoring?: string;
+      kind: DataKind;
+    },
+  ) {
     const provider = this.provider(sport);
     const catalog = await provider.getCatalog();
     const group = resolveGroup(catalog, query.group);
@@ -111,24 +131,41 @@ export class SportsService {
       group: group.key,
       kind: query.kind,
     });
-
     const rules = scoring.rules[group.key] ?? {};
-    const search = query.search?.trim().toLowerCase();
-    const rows = lines
-      .filter(
-        ({ player, gamesPlayed }) =>
-          (!query.position || player.position === query.position) &&
-          gamesPlayed >= query.minGames &&
-          (!search || player.name.toLowerCase().includes(search)),
-      )
-      .map((line): ScoredStatLine => {
+
+    return {
+      catalog,
+      group,
+      scoring,
+      season,
+      rows: lines.map((line): ScoredStatLine => {
         const fantasyPoints = calculateFantasyPoints(line.stats, rules);
         return {
           ...line,
           fantasyPoints,
           fantasyPointsPerGame: perGame(fantasyPoints, line.gamesPlayed),
         };
-      })
+      }),
+    };
+  }
+
+  async getStats(
+    sport: SportKey,
+    query: StatsQueryDto,
+  ): Promise<StatsResponseDto> {
+    const { group, scoring, season, rows: scored } = await this.scoreStatLines(
+      sport,
+      query,
+    );
+
+    const search = query.search?.trim().toLowerCase();
+    const rows = scored
+      .filter(
+        ({ player, gamesPlayed }) =>
+          (!query.position || player.position === query.position) &&
+          gamesPlayed >= query.minGames &&
+          (!search || player.name.toLowerCase().includes(search)),
+      )
       .sort(
         compareRows(
           query.sort ?? COMPUTED_SORT_KEYS.fantasyPoints,
@@ -189,6 +226,91 @@ export class SportsService {
       summary: summarizePoints(
         entries.map(({ fantasyPoints }) => fantasyPoints),
       ),
+    };
+  }
+
+  /**
+   * Expected fantasy points: what each player's opportunities were worth,
+   * beside what they actually scored.
+   *
+   * The model is fit on the whole league for the same season, week and scoring
+   * preset the rows are measured under, so the answer to "is he due to regress"
+   * is priced in the league the question is about rather than a stored table
+   * of last year's weights. Filters are applied after the fit for that reason.
+   */
+  async getExpectedPoints(
+    sport: SportKey,
+    query: {
+      season?: string;
+      week?: number;
+      group?: string;
+      scoring?: string;
+      position?: string;
+      playerIds?: string[];
+      minGames?: number;
+      sort?: string;
+      order?: SortOrder;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{
+    sport: SportKey;
+    season: string;
+    week: number | null;
+    group: string;
+    scoring: string;
+    models: ExpectedPointsModel[];
+    total: number;
+    rows: ExpectedPointsLine[];
+  }> {
+    const provider = this.provider(sport);
+    if (!providesOpportunityStats(provider)) {
+      throw new BadRequestException(
+        SPORTS_MESSAGES.noOpportunityData(sport),
+      );
+    }
+
+    const { group, scoring, season, rows: scored } = await this.scoreStatLines(
+      sport,
+      { ...query, kind: DATA_KINDS.stats },
+    );
+
+    const keys = provider.opportunityStats[group.key];
+    if (!keys?.length) {
+      throw new BadRequestException(
+        SPORTS_MESSAGES.noOpportunityGroup(
+          group.key,
+          Object.keys(provider.opportunityStats),
+        ),
+      );
+    }
+
+    const { models, lines } = expectedPoints(scored, keys);
+    const sort = resolveExpectedSort(query.sort);
+    const ids = query.playerIds?.length ? new Set(query.playerIds) : null;
+    const minGames = query.minGames ?? 0;
+
+    const rows = lines
+      .filter(
+        ({ player, gamesPlayed }) =>
+          (!ids || ids.has(player.id)) &&
+          (!query.position || player.position === query.position) &&
+          gamesPlayed >= minGames,
+      )
+      .sort(compareExpected(sort, query.order ?? SORT_ORDERS.desc));
+
+    const offset = query.offset ?? 0;
+    const limit = query.limit ?? EXPECTED_POINTS_DEFAULTS.population;
+
+    return {
+      sport,
+      season,
+      week: query.week ?? null,
+      group: group.key,
+      scoring: scoring.key,
+      models,
+      total: rows.length,
+      rows: rows.slice(offset, offset + limit),
     };
   }
 
@@ -692,6 +814,37 @@ export class SportsService {
     return provider;
   }
 }
+
+/**
+ * An expected-points board is only sortable by its own computed columns, and a
+ * name that is not one of them is rejected with the list — the same rule the
+ * leaderboard follows, and for the same reason: a board sorted by something
+ * other than what was asked for still reads as a real ranking.
+ */
+const resolveExpectedSort = (sort: string | undefined) => {
+  const keys = Object.values(EXPECTED_SORT_KEYS);
+  if (!sort) return EXPECTED_SORT_KEYS.expectedPointsPerGame;
+
+  const match = matchKey(keys, sort);
+  if (!match) {
+    throw new BadRequestException(SPORTS_MESSAGES.unknownExpectedSort(sort, keys));
+  }
+  return match;
+};
+
+/** Ties fall back to name, and a null efficiency sinks, as elsewhere. */
+const compareExpected =
+  (key: string, order: SortOrder) =>
+  (a: ExpectedPointsLine, b: ExpectedPointsLine) => {
+    const av = a[key as keyof ExpectedPointsLine];
+    const bv = b[key as keyof ExpectedPointsLine];
+    if (typeof av !== 'number' || typeof bv !== 'number') {
+      if (typeof av === typeof bv) return a.player.name.localeCompare(b.player.name);
+      return typeof av === 'number' ? -1 : 1;
+    }
+    const direction = order === SORT_ORDERS.asc ? 1 : -1;
+    return (av - bv) * direction || a.player.name.localeCompare(b.player.name);
+  };
 
 const withMatchup = (
   starter: ProbableStarter | null,
