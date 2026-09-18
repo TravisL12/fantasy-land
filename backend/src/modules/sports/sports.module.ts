@@ -5,6 +5,7 @@ import { NflProvider } from './providers/nfl/nfl.provider.js';
 import { SPORT_PROVIDERS } from './sports.constants.js';
 import { SportsController } from './sports.controller.js';
 import { SportsService } from './sports.service.js';
+import { SportsWarmupService } from './sports.warmup.service.js';
 
 // To add a sport: implement SportProvider under providers/<sport>/ and list it here.
 @Module({
@@ -19,6 +20,7 @@ import { SportsService } from './sports.service.js';
       useFactory: (...providers: [MlbProvider, NflProvider]) => providers,
     },
     SportsService,
+    SportsWarmupService,
   ],
   exports: [SportsService],
 })

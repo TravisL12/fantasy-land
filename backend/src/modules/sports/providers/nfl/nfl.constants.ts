@@ -45,7 +45,13 @@ export const NFL_AVAILABILITY: Record<string, Availability> = {
 /** A game-status designation overrides an otherwise active roster status. */
 export const NFL_INJURY_STATUSES = ['IR', 'Out', 'Doubtful', 'PUP', 'NA'];
 export const SLEEPER_SEASON_TYPE = 'regular';
-export const NFL_FIRST_SEASON = 2018;
+/**
+ * Sleeper serves weekly stats well before this, but 2017 is where the fields
+ * the expected-points model reads start appearing (air yards and red zone
+ * targets are there; snap counts and red zone carries are not). Ten seasons is
+ * also what the warm-up pulls, so the two line up.
+ */
+export const NFL_FIRST_SEASON = 2017;
 export const NFL_REGULAR_SEASON_WEEKS = 18;
 
 /**

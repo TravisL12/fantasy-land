@@ -47,6 +47,29 @@ export const OLLAMA_WARMUP_MODES = {
 } as const;
 export const DEFAULT_OLLAMA_WARMUP_MODE = OLLAMA_WARMUP_MODES.page;
 
+export const SPORTS_CONFIG_KEY = 'sports';
+
+/**
+ * Whether finished seasons are pulled into the cache at startup. "boot" warms
+ * them in the background; "off" leaves the first question about an old season
+ * to pay for it. Either way the data is identical — this only decides who
+ * waits.
+ */
+export const SPORTS_WARMUP_MODES = { boot: 'boot', off: 'off' } as const;
+export const DEFAULT_SPORTS_WARMUP_MODE = SPORTS_WARMUP_MODES.boot;
+/**
+ * How many seasons back to warm. Past seasons never expire, so this is paid
+ * once per deploy of a cache, not per restart.
+ */
+export const DEFAULT_SPORTS_WARMUP_SEASONS = 10;
+/**
+ * Pause between one season/group fetch and the next. Warming is background
+ * work with nobody waiting on it, and a season of NFL stats is already
+ * eighteen weekly requests — pacing keeps a cold cache from arriving at
+ * Sleeper as one burst.
+ */
+export const DEFAULT_SPORTS_WARMUP_DELAY_MS = 250;
+
 export const MCP_CONFIG_KEY = 'mcp';
 
 export const MCP_HTTP_CONFIG_KEY = 'mcpHttp';

@@ -32,6 +32,10 @@ services:
       - OLLAMA_THINK=${OLLAMA_THINK:-false}
       - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-5m}
       - OLLAMA_WARMUP=${OLLAMA_WARMUP:-page}
+      # Pull past seasons into the cache at startup, in the background.
+      - SPORTS_WARMUP=${SPORTS_WARMUP:-boot}
+      - SPORTS_WARMUP_SEASONS=${SPORTS_WARMUP_SEASONS:-10}
+      - SPORTS_WARMUP_DELAY_MS=${SPORTS_WARMUP_DELAY_MS:-250}
       # Bearer token for /api/mcp. Unset leaves that endpoint disabled.
       - MCP_HTTP_TOKEN=${MCP_HTTP_TOKEN:-}
     extra_hosts:

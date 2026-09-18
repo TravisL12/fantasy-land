@@ -6,6 +6,7 @@ import { chatConfig } from './config/chat.config.js';
 import { databaseConfig } from './config/database.config.js';
 import { mcpHttpConfig } from './config/mcp-http.config.js';
 import { mcpConfig } from './config/mcp.config.js';
+import { sportsConfig } from './config/sports.config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { ChatModule } from './modules/chat/chat.module.js';
@@ -24,6 +25,7 @@ import { SportsModule } from './modules/sports/sports.module.js';
         authConfig,
         chatConfig,
         mcpConfig,
+        sportsConfig,
         mcpHttpConfig,
       ],
     }),
