@@ -173,6 +173,12 @@ export interface DashboardRun {
   results: Record<string, SourceResult>;
 }
 
+/** What a save carries: the spec, plus the words that asked for it. */
+export interface DashboardInput {
+  spec: DashboardSpec;
+  prompt?: string;
+}
+
 export type Dashboard = typeof dashboards.$inferSelect;
 export type NewDashboard = typeof dashboards.$inferInsert;
 
@@ -185,6 +191,8 @@ export interface PublicDashboard {
   id: string;
   title: string;
   description: string | null;
+  /** The request it was built from, shown on the dashboard itself. */
+  prompt: string | null;
   spec: DashboardSpec;
   createdAt: Date;
   updatedAt: Date;

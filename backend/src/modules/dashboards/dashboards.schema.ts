@@ -12,6 +12,8 @@ export const dashboards = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     title: text().notNull(),
     description: text(),
+    /** What the user asked for, so an opened dashboard still shows its question. */
+    prompt: text(),
     spec: jsonb().$type<DashboardSpec>().notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true })

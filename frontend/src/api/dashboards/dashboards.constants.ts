@@ -27,3 +27,6 @@ export const DEFAULT_ROW_KEY = 'id';
 export const DEFAULT_LABEL_PATH = 'name';
 export const DEFAULT_VERSUS_ROWS_PATH = 'players';
 export const DEFAULT_METER_MAX = 100;
+
+/** Mirrors the backend's DASHBOARD_LIMITS.prompt. */
+export const PROMPT_MAX_LENGTH = 2000;

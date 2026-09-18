@@ -5,6 +5,7 @@ import { BuildDashboardTool } from './build-dashboard.tool.js';
 import {
   BUILDER_SYSTEM_PROMPT,
   DASHBOARD_EVENTS,
+  editPreamble,
 } from './dashboards.constants.js';
 import { DashboardsService } from './dashboards.service.js';
 import type { DashboardSpec, DashboardStreamEvent } from './dashboards.types.js';
@@ -24,6 +25,7 @@ export class DashboardBuilderService {
   async *build(
     history: ChatMessage[],
     signal: AbortSignal,
+    current?: DashboardSpec,
   ): AsyncGenerator<DashboardStreamEvent> {
     // The tool is request-scoped so it can capture this build's spec.
     let spec: DashboardSpec | undefined;
@@ -31,8 +33,12 @@ export class DashboardBuilderService {
       spec = built;
     });
 
+    const systemPrompt = current
+      ? BUILDER_SYSTEM_PROMPT + editPreamble(current)
+      : BUILDER_SYSTEM_PROMPT;
+
     for await (const event of this.chat.run(history, signal, {
-      systemPrompt: BUILDER_SYSTEM_PROMPT,
+      systemPrompt,
       extraTools: [tool],
     })) {
       // The spec goes out as soon as the tool accepts it, so the preview

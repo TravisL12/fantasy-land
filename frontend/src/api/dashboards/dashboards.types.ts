@@ -147,9 +147,17 @@ export interface Dashboard {
   id: string;
   title: string;
   description: string | null;
+  /** The request it was built from, shown on the dashboard itself. */
+  prompt: string | null;
   spec: DashboardSpec;
   createdAt: string;
   updatedAt: string;
+}
+
+/** What a save sends: the spec, plus the words that asked for it. */
+export interface DashboardSave {
+  spec: DashboardSpec;
+  prompt?: string;
 }
 
 export type DashboardStreamEvent =

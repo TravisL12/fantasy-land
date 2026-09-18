@@ -15,6 +15,7 @@ import {
 import { dashboards } from './dashboards.schema.js';
 import type {
   Dashboard,
+  DashboardInput,
   DashboardRun,
   DashboardSpec,
   PublicDashboard,
@@ -72,7 +73,7 @@ export class DashboardsService {
     return dashboard;
   }
 
-  async create(userId: string, spec: DashboardSpec): Promise<Dashboard> {
+  async create(userId: string, input: DashboardInput): Promise<Dashboard> {
     const saved = await this.list(userId);
     if (saved.length >= DASHBOARD_LIMITS.perUser) {
       throw new ForbiddenException(DASHBOARD_MESSAGES.tooMany);
@@ -80,12 +81,7 @@ export class DashboardsService {
 
     const [dashboard] = await this.db
       .insert(dashboards)
-      .values({
-        userId,
-        title: spec.title,
-        description: spec.description,
-        spec,
-      })
+      .values({ userId, ...this.columns(input) })
       .returning();
     return dashboard;
   }
@@ -93,15 +89,25 @@ export class DashboardsService {
   async update(
     userId: string,
     id: string,
-    spec: DashboardSpec,
+    input: DashboardInput,
   ): Promise<Dashboard> {
     await this.get(userId, id);
     const [dashboard] = await this.db
       .update(dashboards)
-      .set({ title: spec.title, description: spec.description, spec })
+      .set(this.columns(input))
       .where(and(eq(dashboards.id, id), eq(dashboards.userId, userId)))
       .returning();
     return dashboard;
+  }
+
+  /** The columns a save writes: the spec, its own headings, and the request. */
+  private columns({ spec, prompt }: DashboardInput) {
+    return {
+      title: spec.title,
+      description: spec.description ?? null,
+      prompt: prompt?.trim() || null,
+      spec,
+    };
   }
 
   async remove(userId: string, id: string): Promise<void> {
@@ -115,10 +121,11 @@ export class DashboardsService {
     id,
     title,
     description,
+    prompt,
     spec,
     createdAt,
     updatedAt,
   }: Dashboard): PublicDashboard {
-    return { id, title, description, spec, createdAt, updatedAt };
+    return { id, title, description, prompt, spec, createdAt, updatedAt };
   }
 }

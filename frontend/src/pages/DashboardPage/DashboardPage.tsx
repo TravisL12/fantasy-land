@@ -1,11 +1,13 @@
 import { useParams } from 'react-router';
 import { useGetDashboardQuery } from '@/api/dashboards';
 import { DashboardView } from '@/components/DashboardView';
+import { HeaderLink } from '@/components/HeaderLink';
 import { PageHeader } from '@/components/PageHeader';
 import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
-import { ROUTES } from '@/router/routes.constants';
+import { ROUTES, buildDashboardEditPath } from '@/router/routes.constants';
 import { getApiErrorMessage } from '@/utils';
 import { DASHBOARD_COPY } from './DashboardPage.constants';
+import { Prompt, PromptLabel, PromptText } from './DashboardPage.styles';
 
 export const DashboardPage = () => {
   const { dashboardId = '' } = useParams();
@@ -26,7 +28,18 @@ export const DashboardPage = () => {
       <PageHeader
         title={dashboard.title}
         back={{ to: ROUTES.dashboards, label: DASHBOARD_COPY.back }}
+        actions={
+          <HeaderLink to={buildDashboardEditPath(dashboard.id)}>
+            {DASHBOARD_COPY.edit}
+          </HeaderLink>
+        }
       />
+      {dashboard.prompt && (
+        <Prompt>
+          <PromptLabel>{DASHBOARD_COPY.askedFor}</PromptLabel>
+          <PromptText>{dashboard.prompt}</PromptText>
+        </Prompt>
+      )}
       <DashboardView spec={dashboard.spec} />
     </>
   );

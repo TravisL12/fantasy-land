@@ -1,0 +1,1 @@
+ALTER TABLE "dashboards" ADD COLUMN "prompt" text;

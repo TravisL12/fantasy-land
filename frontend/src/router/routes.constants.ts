@@ -9,6 +9,7 @@ export const ROUTES = {
   dashboardCreate: '/dashboards/create',
   dashboardExamples: '/dashboards/examples',
   dashboard: '/dashboards/:dashboardId',
+  dashboardEdit: '/dashboards/:dashboardId/edit',
   sports: '/sports',
   sportStats: '/sports/:sport',
   playerStats: '/sports/:sport/players/:playerId',
@@ -37,3 +38,6 @@ export const buildPlayerStatsPath = (
 
 export const buildDashboardPath = (dashboardId: string) =>
   generatePath(ROUTES.dashboard, { dashboardId });
+
+export const buildDashboardEditPath = (dashboardId: string) =>
+  generatePath(ROUTES.dashboardEdit, { dashboardId });

@@ -1,5 +1,10 @@
 import { baseApi } from '@/api/baseApi';
-import type { Dashboard, DashboardRun, DashboardSpec } from './dashboards.types';
+import type {
+  Dashboard,
+  DashboardRun,
+  DashboardSave,
+  DashboardSpec,
+} from './dashboards.types';
 
 const TAG = 'Dashboard' as const;
 
@@ -20,15 +25,15 @@ export const dashboardsApi = baseApi
       runDashboard: build.mutation<DashboardRun, DashboardSpec>({
         query: (spec) => ({ url: '/dashboards/run', method: 'POST', body: { spec } }),
       }),
-      createDashboard: build.mutation<Dashboard, DashboardSpec>({
-        query: (spec) => ({ url: '/dashboards', method: 'POST', body: { spec } }),
+      createDashboard: build.mutation<Dashboard, DashboardSave>({
+        query: (body) => ({ url: '/dashboards', method: 'POST', body }),
         invalidatesTags: [TAG],
       }),
-      updateDashboard: build.mutation<Dashboard, { id: string; spec: DashboardSpec }>({
-        query: ({ id, spec }) => ({
+      updateDashboard: build.mutation<Dashboard, DashboardSave & { id: string }>({
+        query: ({ id, ...body }) => ({
           url: `/dashboards/${id}`,
           method: 'PATCH',
-          body: { spec },
+          body,
         }),
         invalidatesTags: (_result, _error, { id }) => [TAG, { type: TAG, id }],
       }),

@@ -1,3 +1,5 @@
+import type { DashboardSpec } from './dashboards.types.js';
+
 export const DASHBOARDS_ROUTE = 'dashboards';
 export const DASHBOARDS_ROUTES = {
   build: 'build',
@@ -65,6 +67,8 @@ export const SPEC_LIMITS = {
 
 export const DASHBOARD_LIMITS = {
   perUser: 50,
+  /** The saved prompt grows by one line per refinement, so it needs a ceiling. */
+  prompt: 2000,
 } as const;
 
 export const DASHBOARD_MESSAGES = {
@@ -83,6 +87,21 @@ export const DASHBOARD_MESSAGES = {
   needMetrics: (widget: string) =>
     `Versus "${widget}" needs "metrics": the numbers the two entities are compared on.`,
 } as const;
+
+/**
+ * Appended to the builder prompt when a dashboard already exists. The chat
+ * history carries only the text turns, so without this the model cannot see
+ * what it built last round and re-invents the dashboard from scratch.
+ */
+export const editPreamble = (spec: DashboardSpec): string =>
+  [
+    '',
+    'A dashboard already exists and the user is refining it. Its current spec is:',
+    JSON.stringify(spec),
+    'Change only what they ask for and call build_dashboard with the complete',
+    'updated spec — it replaces the old one, so keep every source and widget you',
+    'still want. You may still call a data tool first to check a field name.',
+  ].join('\n');
 
 /**
  * The builder gets the full stats tool set so it can look at a real result

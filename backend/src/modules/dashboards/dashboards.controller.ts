@@ -47,7 +47,7 @@ export class DashboardsController {
 
   @Post(DASHBOARDS_ROUTES.build)
   async build(
-    @Body() { messages }: BuildRequestDto,
+    @Body() { messages, spec }: BuildRequestDto,
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
@@ -59,7 +59,12 @@ export class DashboardsController {
     req.on('close', () => controller.abort());
     openSseStream(res);
 
-    for await (const event of this.builder.build(messages, controller.signal)) {
+    const current = spec ? this.dashboards.validate(spec) : undefined;
+    for await (const event of this.builder.build(
+      messages,
+      controller.signal,
+      current,
+    )) {
       if (controller.signal.aborted) break;
       writeSseEvent(res, event);
     }
@@ -69,12 +74,12 @@ export class DashboardsController {
   @Post()
   async create(
     @CurrentUser() user: PublicUser,
-    @Body() { spec }: DashboardSpecDto,
+    @Body() { spec, prompt }: DashboardSpecDto,
   ): Promise<PublicDashboard> {
-    const created = await this.dashboards.create(
-      user.id,
-      this.dashboards.validate(spec),
-    );
+    const created = await this.dashboards.create(user.id, {
+      spec: this.dashboards.validate(spec),
+      prompt,
+    });
     return this.dashboards.toPublic(created);
   }
 
@@ -90,13 +95,12 @@ export class DashboardsController {
   async update(
     @CurrentUser() user: PublicUser,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() { spec }: DashboardSpecDto,
+    @Body() { spec, prompt }: DashboardSpecDto,
   ): Promise<PublicDashboard> {
-    const updated = await this.dashboards.update(
-      user.id,
-      id,
-      this.dashboards.validate(spec),
-    );
+    const updated = await this.dashboards.update(user.id, id, {
+      spec: this.dashboards.validate(spec),
+      prompt,
+    });
     return this.dashboards.toPublic(updated);
   }
 

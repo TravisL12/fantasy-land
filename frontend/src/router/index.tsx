@@ -33,8 +33,16 @@ export const router = createBrowserRouter([
             path: ROUTES.dashboardCreate,
             // Split out with the chat: only the builder needs the markdown renderer.
             lazy: async () => ({
-              Component: (await import('@/pages/DashboardCreatePage'))
-                .DashboardCreatePage,
+              Component: (await import('@/pages/DashboardBuilderPage'))
+                .DashboardBuilderPage,
+            }),
+          },
+          {
+            // The same page: with an id it refines that dashboard instead.
+            path: ROUTES.dashboardEdit,
+            lazy: async () => ({
+              Component: (await import('@/pages/DashboardBuilderPage'))
+                .DashboardBuilderPage,
             }),
           },
           {
