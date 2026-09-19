@@ -1,5 +1,6 @@
 import type {
   AVAILABILITY,
+  CLINCH_STATUS,
   PREVIEW_STATS_SOURCES,
   START_CONFIDENCE,
   DATA_KINDS,
@@ -54,6 +55,8 @@ export interface ScoringPreset {
 export interface SportCapabilities {
   /** Fixtures: the schedule, head-to-head meetings and game previews. */
   schedule: boolean;
+  /** The league table, with each side's clinch and elimination position. */
+  standings: boolean;
   /** Matchup ratings, projected starts, roster availability — schedule and more. */
   leagueData: boolean;
   expectedPoints: boolean;
@@ -283,6 +286,15 @@ export interface PlayerStatus {
  * a sport whose upstream publishes a schedule but no team stats implements
  * this alone rather than being forced to fake the rest.
  */
+/**
+ * Optional provider capability: the league table. Kept apart from the fixture
+ * list because the two come from different places even within one sport —
+ * football's schedule is Sleeper's and its table is ESPN's.
+ */
+export interface StandingsProvider extends SportProvider {
+  getStandings(season: string): Promise<StandingsGroup[]>;
+}
+
 export interface ScheduleProvider extends SportProvider {
   getSchedule(query: ScheduleQuery): Promise<ScheduledGame[]>;
   getHeadToHead(query: HeadToHeadQuery): Promise<ScheduledGame[]>;
@@ -520,4 +532,62 @@ export interface GamePreview {
   series: TeamSeries;
   /** Anything the reader would otherwise have to infer, e.g. a missing capability. */
   notes: string[];
+}
+
+export type ClinchStatus = ValueOf<typeof CLINCH_STATUS>;
+
+/**
+ * One club's line in the table. Every league publishes some of this and
+ * computes the rest; a null is "this league does not say", never zero.
+ */
+export interface StandingsEntry {
+  team: string;
+  name: string;
+  wins: number;
+  losses: number;
+  /** Football draws. Always zero where a sport cannot tie. */
+  ties: number;
+  winPct: number;
+  gamesPlayed: number;
+  /** Games still to play, where it can be known — the input to a magic number. */
+  gamesRemaining: number | null;
+  /** Null for the group leader, who is behind nobody. */
+  gamesBack: number | null;
+  scoredFor: number;
+  scoredAgainst: number;
+  /** Upstream's own wording, e.g. "W3". */
+  streak: string | null;
+  /** Position within this group. */
+  rank: number;
+  /** Seed in the conference or league, where upstream seeds them. */
+  playoffSeed: number | null;
+  clinch: ClinchStatus;
+  /** What was clinched or how they went out, in upstream's own terms. */
+  clinchNote: string | null;
+  /** Wins plus rival losses still needed to win the group. */
+  magicNumber: number | null;
+  /** Losses plus rival wins that would end their hold on the group. */
+  eliminationNumber: number | null;
+  /** The second route in, where the sport has one. */
+  wildCard: {
+    gamesBack: number | null;
+    eliminationNumber: number | null;
+  } | null;
+}
+
+/** A division, or a whole conference where a sport does not split into them. */
+export interface StandingsGroup {
+  key: string;
+  name: string;
+  /** The league or conference it sits in, e.g. "AL" or "AFC". */
+  conference: string | null;
+  teams: StandingsEntry[];
+}
+
+export interface StandingsReport {
+  sport: SportKey;
+  season: string;
+  groups: StandingsGroup[];
+  /** How the clinch numbers were arrived at — published, or computed here. */
+  method: string;
 }

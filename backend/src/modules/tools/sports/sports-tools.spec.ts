@@ -9,6 +9,7 @@ import { ComparePlayersTool } from './compare-players.tool.js';
 import { FindPlayerTool } from './find-player.tool.js';
 import { GamePreviewTool } from './game-preview.tool.js';
 import { ScheduleTool } from './schedule.tool.js';
+import { StandingsTool } from './standings.tool.js';
 import { LeaderboardTool } from './leaderboard.tool.js';
 import { PlayerStatsTool } from './player-stats.tool.js';
 import {
@@ -759,5 +760,44 @@ describe('get_game_preview', () => {
       { full: true },
     );
     expect(full).toBe(preview);
+  });
+});
+
+describe('get_standings', () => {
+  const table = { sport: 'nfl', season: '2026', groups: [], method: 'computed' };
+
+  const stub = () => {
+    const getStandings = vi.fn().mockResolvedValue(table);
+    return {
+      getStandings,
+      tool: new StandingsTool({ getStandings } as unknown as SportsService),
+    };
+  };
+
+  it('passes the season and group filter through', async () => {
+    const { getStandings, tool } = stub();
+
+    const result = await tool.execute({
+      sport: 'mlb',
+      season: '2025',
+      group: 'AL East',
+    });
+
+    expect(result).toBe(table);
+    expect(getStandings).toHaveBeenCalledWith('mlb', {
+      season: '2025',
+      group: 'AL East',
+    });
+  });
+
+  it('defaults to the whole league of the default sport', async () => {
+    const { getStandings, tool } = stub();
+
+    await tool.execute({});
+
+    expect(getStandings).toHaveBeenCalledWith('nfl', {
+      season: undefined,
+      group: undefined,
+    });
   });
 });

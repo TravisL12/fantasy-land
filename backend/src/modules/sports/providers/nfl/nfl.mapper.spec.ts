@@ -6,6 +6,7 @@ import {
   mapDirectory,
   mapSchedule,
   mapScoreboard,
+  mapStandings,
   mapStatLines,
   mapWeeklyLog,
   scoreKey,
@@ -286,5 +287,121 @@ describe('NFL schedule mapper', () => {
     expect(mapSchedule([fixture(2, 'KC', 'BUF', 'pre_game')], scores)[0].score).toBe(
       null,
     );
+  });
+});
+
+describe('NFL standings mapper', () => {
+  const entry = (
+    abbreviation: string,
+    wins: number,
+    losses: number,
+    extra: { clincher?: string; gamesBehind?: [number, string] } = {},
+  ) => ({
+    team: { abbreviation, displayName: abbreviation },
+    stats: [
+      { name: 'wins', value: wins, displayValue: String(wins) },
+      { name: 'losses', value: losses, displayValue: String(losses) },
+      { name: 'ties', value: 0, displayValue: '0' },
+      {
+        name: 'winPercent',
+        value: wins / Math.max(1, wins + losses),
+        displayValue: '',
+      },
+      { name: 'pointsFor', value: 100, displayValue: '100' },
+      { name: 'pointsAgainst', value: 90, displayValue: '90' },
+      { name: 'playoffSeed', value: 1, displayValue: '1' },
+      ...(extra.clincher
+        ? [{ name: 'clincher', value: 0, displayValue: extra.clincher }]
+        : []),
+      ...(extra.gamesBehind
+        ? [
+            {
+              name: 'gamesBehind',
+              value: extra.gamesBehind[0],
+              displayValue: extra.gamesBehind[1],
+            },
+          ]
+        : []),
+    ],
+  });
+
+  const tree = (entries: ReturnType<typeof entry>[]) => ({
+    children: [
+      {
+        abbreviation: 'AFC',
+        name: 'American Football Conference',
+        children: [
+          {
+            abbreviation: 'EAST',
+            name: 'AFC East',
+            standings: { entries },
+          },
+        ],
+      },
+    ],
+  });
+
+  /**
+   * Upstream abbreviates both divisions as "EAST", so the printed name is
+   * what makes a key unique across the two conferences.
+   */
+  it('keys a division by its full name, not the ambiguous abbreviation', () => {
+    const [group] = mapStandings(tree([entry('BUF', 2, 0)]), new Map());
+
+    expect(group).toMatchObject({ key: 'AFC East', conference: 'AFC' });
+  });
+
+  /** Upstream put a 14-3 club fourth in a finished division. */
+  it('ranks the division by record rather than trusting upstream order', () => {
+    const [group] = mapStandings(
+      tree([entry('LAC', 11, 6), entry('DEN', 14, 3), entry('KC', 6, 11)]),
+      new Map(),
+    );
+
+    expect(group.teams.map(({ team, rank }) => [team, rank])).toEqual([
+      ['DEN', 1],
+      ['LAC', 2],
+      ['KC', 3],
+    ]);
+  });
+
+  it('reads the clinch letter into a status and words', () => {
+    const [group] = mapStandings(
+      tree([entry('NE', 14, 3, { clincher: 'z' }), entry('NYJ', 3, 14, { clincher: 'e' })]),
+      new Map(),
+    );
+
+    expect(group.teams[0]).toMatchObject({
+      clinch: 'clinched',
+      clinchNote: 'Clinched division and a first-round bye',
+    });
+    expect(group.teams[1].clinch).toBe('eliminated');
+  });
+
+  /**
+   * Upstream writes "-" for the club that leads and 0 for one level with it.
+   * Folding the second into the first would hide a tie at the top.
+   */
+  it('keeps nobody-behind apart from level-with-the-lead', () => {
+    const [group] = mapStandings(
+      tree([
+        entry('BAL', 1, 0, { gamesBehind: [0, '-'] }),
+        entry('CIN', 1, 0, { gamesBehind: [0, '0'] }),
+      ]),
+      new Map(),
+    );
+
+    expect(group.teams[0].gamesBack).toBe(null);
+    expect(group.teams[1].gamesBack).toBe(0);
+  });
+
+  it('prefers the fixture list\'s games-remaining count over the played total', () => {
+    const [group] = mapStandings(
+      tree([entry('DAL', 1, 0)]),
+      // A canceled fixture means this club plays 16, not 17.
+      new Map([['DAL', 15]]),
+    );
+
+    expect(group.teams[0].gamesRemaining).toBe(15);
   });
 });

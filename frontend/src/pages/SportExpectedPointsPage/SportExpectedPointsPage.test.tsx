@@ -13,6 +13,7 @@ const catalog = {
   groups: [{ key: 'offense', label: 'Offense', positions: ['QB', 'WR'] }],
   capabilities: {
     schedule: false,
+    standings: false,
     leagueData: false,
     expectedPoints: true,
     playerDirectory: true,

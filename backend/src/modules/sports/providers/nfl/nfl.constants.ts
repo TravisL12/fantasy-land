@@ -40,6 +40,35 @@ export const espnScoreboardUrl = (season: string, week: number) =>
 const ESPN_REGULAR_SEASON_TYPE = 2;
 
 /**
+ * The table, also from ESPN — Sleeper publishes no standings at all. `level=3`
+ * is what splits the two conferences into their four divisions each; without
+ * it every club comes back in one flat conference list.
+ */
+export const espnStandingsUrl = (season: string) =>
+  'https://site.api.espn.com/apis/v2/sports/football/nfl/standings' +
+  `?season=${season}&level=3`;
+
+/** Games each club plays, the base of a magic number. */
+export const NFL_SEASON_GAMES = 17;
+
+/**
+ * ESPN's one-letter shorthand, in words. It appears only once a club's place
+ * is settled, which is why the numbers behind it are computed here rather
+ * than waited for.
+ */
+export const NFL_CLINCH_NOTES: Record<string, string> = {
+  '*': 'Clinched best record',
+  z: 'Clinched division and a first-round bye',
+  y: 'Clinched playoff berth',
+  x: 'Clinched playoff berth',
+  e: 'Eliminated from playoff contention',
+};
+
+/** The letter that means out; every other letter means in. */
+export const NFL_ELIMINATED_INDICATOR = 'e';
+
+
+/**
  * The two sources disagree on exactly one club abbreviation, so the mapping is
  * a single entry rather than a table: everything else matches Sleeper already.
  */
@@ -60,6 +89,17 @@ export const NFL_GAME_STATUSES: Record<string, string> = {
 
 /** The status that means a game is over and its score is a result. */
 export const NFL_FINAL_STATUS = 'complete';
+/**
+ * The mapped statuses of a game that will still be played. A canceled fixture
+ * carries no score and never will, so counting it as one still to come would
+ * put a club's season at eighteen games and inflate every magic number in its
+ * division by one.
+ */
+export const NFL_UPCOMING_STATUSES = [
+  NFL_GAME_STATUSES.pre_game,
+  NFL_GAME_STATUSES.in_game,
+];
+
 
 /**
  * Statuses a game never leaves. A canceled game has no score and never will,

@@ -7,6 +7,7 @@ export const SPORTS_ROUTES = {
   playerStats: ':sport/players/:playerId/stats',
   schedule: ':sport/schedule',
   preview: ':sport/preview',
+  standings: ':sport/standings',
   starts: ':sport/starts',
   matchups: ':sport/matchups',
   availability: ':sport/availability',
@@ -33,6 +34,29 @@ export const AVAILABILITY = {
   injured: 'injured',
   minors: 'minors',
   inactive: 'inactive',
+} as const;
+
+/**
+ * Where a team sits in the playoff picture, in one vocabulary whatever wording
+ * its league uses — MLB publishes a boolean and a letter, ESPN publishes a
+ * different letter, and a tool should never have to parse either.
+ */
+export const CLINCH_STATUS = {
+  clinched: 'clinched',
+  eliminated: 'eliminated',
+  contending: 'contending',
+} as const;
+
+/**
+ * A magic number counts down on a win or a rival's loss, so it is a real
+ * countdown to winning the group and nothing more. It says nothing about the
+ * tiebreakers that decide a level finish, which is why it ships with a note.
+ */
+export const STANDINGS_METHOD = {
+  upstream:
+    'Clinch and elimination numbers are the league\'s own published figures.',
+  computed:
+    'Clinch and elimination numbers are computed as (games in season + 1) − own wins − rival losses, counting a tie as half a win. They track winning the division and nothing else: they do not account for the head-to-head, division, conference and strength-of-victory tiebreakers that actually settle a level finish, so a magic number of 1 is not the same as having clinched.',
 } as const;
 
 /** Which side of the ball a matchup is rated for. */
@@ -196,6 +220,10 @@ export const SPORTS_MESSAGES = {
   playerNotFound: 'Player not found',
   noLeagueData: (sport: string) =>
     `No matchup or availability data for "${sport}" — this is only wired up for mlb so far`,
+  noStandings: (sport: string) =>
+    `No standings for "${sport}" — its upstream publishes no table.`,
+  unknownStandingsGroup: (group: string, groups: string[]) =>
+    `Unknown division or conference "${group}" — use one of: ${groups.join(', ')}.`,
   noSchedule: (sport: string) =>
     `No schedule data for "${sport}" — its upstream publishes no fixture list.`,
   scheduleNeedsWindow:

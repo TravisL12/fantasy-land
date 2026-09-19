@@ -31,6 +31,7 @@ export interface ScoringPreset {
 /** Which optional datasets a sport's provider supports. */
 export interface SportCapabilities {
   schedule: boolean;
+  standings: boolean;
   leagueData: boolean;
   expectedPoints: boolean;
   playerDirectory: boolean;

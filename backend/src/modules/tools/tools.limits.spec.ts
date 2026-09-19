@@ -4,7 +4,10 @@ import {
 } from '../../common/text/truncate.js';
 import { serializeToolResult } from '../../common/text/truncate.js';
 import { MLB_GROUPS } from '../sports/providers/mlb/mlb.constants.js';
-import { STAT_FORMATS } from '../sports/sports.constants.js';
+import {
+  STANDINGS_METHOD,
+  STAT_FORMATS,
+} from '../sports/sports.constants.js';
 import type { StatGroup } from '../sports/sports.types.js';
 import {
   MATCHUP_LIMIT,
@@ -159,6 +162,53 @@ describe('tool limits fit inside MAX_TOOL_RESULT_CHARS', () => {
       },
       'get_schedule',
     );
+  });
+
+  /**
+   * Standings take no limit argument — a league has the divisions it has — so
+   * the check is that the whole table fits rather than that a cap does. MLB is
+   * the wide case: thirty clubs, six divisions and a wild-card race each.
+   */
+  it('get_standings for a whole league', () => {
+    const team = (index: number) => ({
+      team: 'ATL',
+      name: 'Team Nameofclub',
+      wins: 93,
+      losses: 60,
+      ties: 0,
+      winPct: 0.608,
+      gamesPlayed: 153,
+      gamesRemaining: 9,
+      gamesBack: 18.5,
+      scoredFor: 700,
+      scoredAgainst: 622,
+      streak: 'L1',
+      rank: index + 1,
+      playoffSeed: null,
+      clinch: 'contending',
+      clinchNote: 'Clinched playoff berth',
+      magicNumber: 14,
+      eliminationNumber: 6,
+      wildCard: { gamesBack: 3.5, eliminationNumber: 12 },
+    });
+    const groups = Array.from({ length: 6 }, (_, division) => ({
+      key: 'ALE',
+      name: 'AL East',
+      conference: 'AL',
+      teams: Array.from({ length: 5 }, (_, i) => team(division + i)),
+    }));
+
+    const text = serializeToolResult({
+      sport: 'mlb',
+      season: '2026',
+      method: STANDINGS_METHOD.computed,
+      groups,
+    });
+    expect(
+      text.includes(`"${TRUNCATION_KEY}"`),
+      `get_standings: a whole MLB table serializes to ${text.length} chars, ` +
+        `over the ${MAX_TOOL_RESULT_CHARS} cap.`,
+    ).toBe(false);
   });
 
   it('get_matchup_ratings at its maximum', () => {

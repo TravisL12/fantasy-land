@@ -75,3 +75,20 @@ export interface EspnScoreboard {
     }[];
   }[];
 }
+
+/** ESPN's standings tree: conferences, their divisions, and one row per club. */
+export interface EspnStandingsEntry {
+  team: { abbreviation?: string | null; displayName?: string | null };
+  stats?: { name?: string; value?: number | null; displayValue?: string }[];
+}
+
+export interface EspnStandingsGroup {
+  abbreviation?: string | null;
+  name?: string | null;
+  children?: EspnStandingsGroup[];
+  standings?: { entries?: EspnStandingsEntry[] };
+}
+
+export interface EspnStandings {
+  children?: EspnStandingsGroup[];
+}

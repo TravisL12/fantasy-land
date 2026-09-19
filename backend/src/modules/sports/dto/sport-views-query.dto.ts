@@ -183,6 +183,13 @@ export class GamePreviewQueryDto extends SeasonQueryDto {
   recentGames?: number;
 }
 
+/** The table, optionally narrowed to one division or conference. */
+export class StandingsQueryDto extends SeasonQueryDto {
+  @IsOptional()
+  @IsString()
+  group?: string;
+}
+
 export class MatchupsQueryDto extends SeasonQueryDto {
   @IsOptional()
   @IsIn(Object.values(MATCHUP_SIDES))

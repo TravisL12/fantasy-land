@@ -12,6 +12,7 @@ import { GamePreviewTool } from './sports/game-preview.tool.js';
 import { FindPlayerTool } from './sports/find-player.tool.js';
 import { LeaderboardTool } from './sports/leaderboard.tool.js';
 import { ScheduleTool } from './sports/schedule.tool.js';
+import { StandingsTool } from './sports/standings.tool.js';
 import { PlayerStatsTool } from './sports/player-stats.tool.js';
 import { SportCatalogTool } from './sports/sport-catalog.tool.js';
 import { FANTASY_TOOLS } from './tools.constants.js';
@@ -30,6 +31,7 @@ const TOOLS = [
   PlayerStatsTool,
   ComparePlayersTool,
   ScheduleTool,
+  StandingsTool,
   GamePreviewTool,
   ExpectedPointsTool,
   PitcherStartsTool,

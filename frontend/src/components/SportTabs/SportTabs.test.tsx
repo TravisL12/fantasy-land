@@ -11,6 +11,7 @@ const catalog = (
     league: 'NFL',
     capabilities: {
       schedule: false,
+      standings: false,
       leagueData: false,
       expectedPoints: false,
       playerDirectory: false,

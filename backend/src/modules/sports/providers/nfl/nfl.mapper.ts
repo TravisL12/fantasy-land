@@ -1,4 +1,8 @@
-import { AVAILABILITY, DATA_KINDS } from '../../sports.constants.js';
+import {
+  AVAILABILITY,
+  CLINCH_STATUS,
+  DATA_KINDS,
+} from '../../sports.constants.js';
 import type {
   Availability,
   DataKind,
@@ -6,6 +10,8 @@ import type {
   GameLogEntry,
   PlayerRef,
   ScheduledGame,
+  StandingsEntry,
+  StandingsGroup,
   StatGroup,
   StatLine,
 } from '../../sports.types.js';
@@ -13,6 +19,9 @@ import { pickStats } from '../provider.utils.js';
 import {
   ESPN_TEAM_ALIASES,
   NFL_AVAILABILITY,
+  NFL_CLINCH_NOTES,
+  NFL_ELIMINATED_INDICATOR,
+  NFL_SEASON_GAMES,
   NFL_DERIVED_RATES,
   NFL_FANTASY_POSITIONS,
   NFL_FINAL_STATUS,
@@ -22,6 +31,8 @@ import {
 } from './nfl.constants.js';
 import type {
   EspnScoreboard,
+  EspnStandings,
+  EspnStandingsEntry,
   SleeperDirectory,
   SleeperDirectoryEntry,
   SleeperPlayerInfo,
@@ -254,3 +265,102 @@ export const mapSchedule = (
           ? scores.get(scoreKey(game.home, game.away)) ?? null
           : null,
     }));
+
+/** ESPN gives each row as a named stat list rather than as fields. */
+const statValues = ({ stats }: EspnStandingsEntry) =>
+  new Map(
+    (stats ?? []).flatMap((stat) =>
+      stat.name ? ([[stat.name, stat]] as const) : [],
+    ),
+  );
+
+/**
+ * The league table. ESPN publishes its one-letter clinch shorthand only once a
+ * club's place is settled, so the countdown to it is computed by the caller —
+ * everything here is what upstream actually said.
+ */
+export const mapStandings = (
+  standings: EspnStandings,
+  gamesRemaining: Map<string, number>,
+): StandingsGroup[] =>
+  (standings.children ?? []).flatMap((conference) =>
+    (conference.children ?? []).flatMap((division) => {
+      const entries = division.standings?.entries ?? [];
+      if (!entries.length) return [];
+
+      // Upstream does not order a finished division by record — it put a
+      // 14-3 conference leader fourth — so the table is ranked here.
+      const ranked = [...entries].sort(
+        (a, b) => winPercent(b) - winPercent(a) || wins(b) - wins(a),
+      );
+
+      return [
+        {
+          // Upstream abbreviates a division as "EAST", which both conferences
+          // would answer to; the full name is what makes the key unique.
+          key: division.name ?? division.abbreviation ?? '',
+          name: division.name ?? '',
+          conference: conference.abbreviation ?? conference.name ?? null,
+          teams: ranked.map((entry, index) =>
+            mapStandingsEntry(entry, gamesRemaining, index),
+          ),
+        },
+      ];
+    }),
+  );
+
+const statNumber = (entry: EspnStandingsEntry, name: string) =>
+  statValues(entry).get(name)?.value ?? 0;
+
+const winPercent = (entry: EspnStandingsEntry) =>
+  statNumber(entry, 'winPercent');
+const wins = (entry: EspnStandingsEntry) => statNumber(entry, 'wins');
+
+const mapStandingsEntry = (
+  entry: EspnStandingsEntry,
+  gamesRemaining: Map<string, number>,
+  index: number,
+): StandingsEntry => {
+  const stats = statValues(entry);
+  const number = (name: string) => stats.get(name)?.value ?? null;
+  // Upstream writes "-" for a club that leads and 0 for one level with the
+  // lead. Only the first is "behind nobody"; treating 0 as absent would hide
+  // a real tie at the top.
+  const behind = stats.get('gamesBehind');
+  const team = espnTeam(entry.team?.abbreviation) ?? '';
+  const indicator = stats.get('clincher')?.displayValue;
+  const wins = number('wins') ?? 0;
+  const losses = number('losses') ?? 0;
+  const ties = number('ties') ?? 0;
+
+  return {
+    team,
+    name: entry.team?.displayName ?? team,
+    wins,
+    losses,
+    ties,
+    winPct: number('winPercent') ?? 0,
+    gamesPlayed: wins + losses + ties,
+    gamesRemaining:
+      gamesRemaining.get(team) ??
+      Math.max(0, NFL_SEASON_GAMES - (wins + losses + ties)),
+    gamesBack: behind?.displayValue === '-' ? null : behind?.value ?? null,
+    scoredFor: number('pointsFor') ?? 0,
+    scoredAgainst: number('pointsAgainst') ?? 0,
+    streak: stats.get('streak')?.displayValue ?? null,
+    rank: index + 1,
+    playoffSeed: number('playoffSeed'),
+    clinch: indicator
+      ? indicator === NFL_ELIMINATED_INDICATOR
+        ? CLINCH_STATUS.eliminated
+        : CLINCH_STATUS.clinched
+      : CLINCH_STATUS.contending,
+    clinchNote: indicator ? NFL_CLINCH_NOTES[indicator] ?? indicator : null,
+    // Upstream publishes neither, so both are left for the clinch engine.
+    magicNumber: null,
+    eliminationNumber: null,
+    // Football's wild card is not tracked as a separate race upstream; the
+    // playoff seed already says whether a club is in one of those places.
+    wildCard: null,
+  };
+};

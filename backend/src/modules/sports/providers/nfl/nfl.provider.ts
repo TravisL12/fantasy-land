@@ -21,15 +21,19 @@ import type {
   ScheduleProvider,
   ScheduleQuery,
   SportCatalog,
+  StandingsGroup,
+  StandingsProvider,
   StatLine,
   StatLinesQuery,
   TeamGamesQuery,
 } from '../../sports.types.js';
 import {
   espnScoreboardUrl,
+  espnStandingsUrl,
   NFL_CATALOG_BASE,
   NFL_FINAL_STATUS,
   NFL_SETTLED_STATUSES,
+  NFL_UPCOMING_STATUSES,
   NFL_FIRST_SEASON,
   NFL_GROUPS,
   NFL_OPPORTUNITY_STATS,
@@ -47,12 +51,14 @@ import {
   mapDirectory,
   mapSchedule,
   mapScoreboard,
+  mapStandings,
   mapStatLines,
   mapWeeklyLog,
   toPlayerRef,
 } from './nfl.mapper.js';
 import type {
   EspnScoreboard,
+  EspnStandings,
   SleeperDirectory,
   SleeperPlayerInfo,
   SleeperScheduleGame,
@@ -70,7 +76,11 @@ const cacheKey = (...parts: (string | number | undefined)[]) =>
 
 @Injectable()
 export class NflProvider
-  implements OpportunityProvider, PlayerDirectoryProvider, ScheduleProvider
+  implements
+    OpportunityProvider,
+    PlayerDirectoryProvider,
+    ScheduleProvider,
+    StandingsProvider
 {
   readonly key = SPORT_KEYS.nfl;
   readonly opportunityStats = NFL_OPPORTUNITY_STATS;
@@ -183,6 +193,39 @@ export class NflProvider
     );
 
     return { player, group: statGroup.key, entries };
+  }
+
+  /**
+   * The table. ESPN owns it, as it owns the scores — Sleeper publishes no
+   * standings at all. Games remaining come from the fixture list we already
+   * hold, so the clinch engine above the provider has what it needs without a
+   * second request.
+   */
+  async getStandings(season: string): Promise<StandingsGroup[]> {
+    const ttl = await this.ttlForSeason(season);
+    const remaining = await this.gamesRemaining(season);
+
+    return this.cache.wrap(cacheKey('standings', season), ttl, async () =>
+      mapStandings(
+        (await fetchJsonOrNull<EspnStandings>(espnStandingsUrl(season))) ?? {},
+        remaining,
+      ),
+    );
+  }
+
+  /** How many fixtures each club has left, counted off the season schedule. */
+  private async gamesRemaining(season: string) {
+    const games = await this.seasonSchedule(season);
+    const left = new Map<string, number>();
+
+    for (const game of games) {
+      if (!NFL_UPCOMING_STATUSES.includes(game.status)) continue;
+      for (const team of [game.home, game.away]) {
+        left.set(team, (left.get(team) ?? 0) + 1);
+      }
+    }
+
+    return left;
   }
 
   /**

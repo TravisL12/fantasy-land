@@ -1,4 +1,4 @@
-import { AVAILABILITY } from '../../sports.constants.js';
+import { AVAILABILITY, CLINCH_STATUS } from '../../sports.constants.js';
 import type {
   Availability,
   GameLogEntry,
@@ -6,6 +6,8 @@ import type {
   PlayerStatus,
   ProbableStarter,
   ScheduledGame,
+  StandingsEntry,
+  StandingsGroup,
   StatGroup,
   StatLine,
   StatValues,
@@ -14,10 +16,12 @@ import type {
 import { pickStats, toNumber } from '../provider.utils.js';
 import {
   MLB_DERIVED_STATS,
+  MLB_DIVISIONS,
   MLB_FINAL_STATE,
   MLB_GROUP_KEYS,
   MLB_PITCHER_POSITION_TYPE,
   MLB_PITCHER_ROLES,
+  MLB_SEASON_GAMES,
   MLB_STARTER_SHARE,
   MLB_STATUS_CODES,
   MLB_STATUS_KEYWORDS,
@@ -31,6 +35,8 @@ import type {
   MlbRosterEntry,
   MlbScheduleResponse,
   MlbSeasonSplit,
+  MlbStandingsResponse,
+  MlbTeamRecord,
   MlbTeamStatSplit,
 } from './mlb.types.js';
 
@@ -242,3 +248,85 @@ export const mapRoster = (
     status: entry.status.description,
     availability: availabilityFor(entry.status),
   }));
+
+/**
+ * Upstream writes "-" where a figure does not apply — for the leader's games
+ * back, or for a magic number that no longer means anything. That is absence,
+ * not zero, so it maps to null and never to a countdown that has finished.
+ */
+const standingsNumber = (value: string | undefined) =>
+  value === undefined || value === '-' ? null : toNumber(value) ?? null;
+
+/** Upstream's shorthand for what a club has settled, in words. */
+const CLINCH_NOTES: Record<string, string> = {
+  z: 'Clinched best record',
+  y: 'Clinched division',
+  w: 'Clinched wild card',
+  x: 'Clinched playoff berth',
+  e: 'Eliminated from the division race',
+};
+
+export const mapStandings = (
+  records: MlbStandingsResponse['records'],
+  teams: TeamAbbreviations,
+): StandingsGroup[] =>
+  records.flatMap((record) => {
+    const division = record.division?.id
+      ? MLB_DIVISIONS[record.division.id]
+      : undefined;
+    if (!division) return [];
+
+    return [
+      {
+        ...division,
+        teams: record.teamRecords.map((entry, index) =>
+          mapTeamRecord(entry, teams, index),
+        ),
+      },
+    ];
+  });
+
+const mapTeamRecord = (
+  entry: MlbTeamRecord,
+  teams: TeamAbbreviations,
+  index: number,
+): StandingsEntry => {
+  const eliminated = entry.clinchIndicator === 'e';
+
+  return {
+    team: teamAbbr(entry.team, teams) ?? String(entry.team?.id ?? ''),
+    name: entry.team?.name ?? '',
+    wins: entry.wins,
+    losses: entry.losses,
+    // Baseball plays a tie out; the field exists for the sports that do not.
+    ties: 0,
+    winPct: toNumber(entry.winningPercentage) ?? 0,
+    gamesPlayed: entry.gamesPlayed ?? entry.wins + entry.losses,
+    gamesRemaining: Math.max(
+      0,
+      MLB_SEASON_GAMES - (entry.gamesPlayed ?? entry.wins + entry.losses),
+    ),
+    gamesBack: standingsNumber(entry.gamesBack),
+    scoredFor: entry.runsScored ?? 0,
+    scoredAgainst: entry.runsAllowed ?? 0,
+    streak: entry.streak?.streakCode ?? null,
+    rank: toNumber(entry.divisionRank) ?? index + 1,
+    // Baseball seeds only the teams that get there, which upstream publishes
+    // once the field is set rather than all season.
+    playoffSeed: null,
+    clinch: entry.clinched
+      ? CLINCH_STATUS.clinched
+      : eliminated
+        ? CLINCH_STATUS.eliminated
+        : CLINCH_STATUS.contending,
+    clinchNote: entry.clinchIndicator
+      ? CLINCH_NOTES[entry.clinchIndicator] ?? entry.clinchIndicator
+      : null,
+    magicNumber: standingsNumber(entry.magicNumber),
+    eliminationNumber: standingsNumber(entry.eliminationNumber),
+    wildCard: {
+      gamesBack: standingsNumber(entry.wildCardGamesBack),
+      eliminationNumber: standingsNumber(entry.wildCardEliminationNumber),
+    },
+  };
+};

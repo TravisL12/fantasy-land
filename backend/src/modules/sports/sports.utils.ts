@@ -11,6 +11,7 @@ import type {
   PlayerDirectoryProvider,
   ScheduleProvider,
   SportProvider,
+  StandingsProvider,
   StatDefinition,
   StatGroup,
 } from './sports.types.js';
@@ -28,6 +29,11 @@ export const providesLeagueData = (
 export const providesSchedule = (
   provider: SportProvider,
 ): provider is ScheduleProvider => 'getSchedule' in provider;
+
+/** Narrows a provider to the optional league table. */
+export const providesStandings = (
+  provider: SportProvider,
+): provider is StandingsProvider => 'getStandings' in provider;
 
 /** Narrows a provider to the optional whole-league player list. */
 export const providesPlayerDirectory = (

@@ -18,6 +18,28 @@ const { decimal, innings, rate } = STAT_FORMATS;
 
 export const MLB_API = 'https://statsapi.mlb.com/api/v1';
 export const MLB_SPORT_ID = 1;
+/** American and National; both are asked for in one standings request. */
+export const MLB_LEAGUE_IDS = [103, 104];
+export const MLB_STANDINGS_TYPE = 'regularSeason';
+/** Games each club plays, the base of a magic number. */
+export const MLB_SEASON_GAMES = 162;
+
+/**
+ * Division ids are stable and their names are not worth a second request, so
+ * the six are named here. `conference` is the league a division sits in, which
+ * is the level the wild card is decided at.
+ */
+export const MLB_DIVISIONS: Record<
+  number,
+  { key: string; name: string; conference: string }
+> = {
+  200: { key: 'ALW', name: 'AL West', conference: 'AL' },
+  201: { key: 'ALE', name: 'AL East', conference: 'AL' },
+  202: { key: 'ALC', name: 'AL Central', conference: 'AL' },
+  203: { key: 'NLW', name: 'NL West', conference: 'NL' },
+  204: { key: 'NLE', name: 'NL East', conference: 'NL' },
+  205: { key: 'NLC', name: 'NL Central', conference: 'NL' },
+};
 export const MLB_FIRST_SEASON = 2015;
 /** Large enough to return every player in one request (≈750 hitters, ≈900 pitchers). */
 export const MLB_STATS_PAGE_SIZE = 3000;

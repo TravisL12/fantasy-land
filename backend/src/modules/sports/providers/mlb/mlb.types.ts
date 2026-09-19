@@ -88,3 +88,34 @@ export interface MlbRosterEntry {
 export interface MlbRosterResponse {
   roster: MlbRosterEntry[];
 }
+
+/** One club's line in `/standings`; only the fields we normalize are typed. */
+export interface MlbTeamRecord {
+  team: MlbRef;
+  wins: number;
+  losses: number;
+  gamesPlayed?: number;
+  winningPercentage?: string;
+  divisionRank?: string;
+  /** "-" for the leader, otherwise a number, sometimes a half game. */
+  gamesBack?: string;
+  wildCardGamesBack?: string;
+  runsScored?: number;
+  runsAllowed?: number;
+  streak?: { streakCode?: string };
+  clinched?: boolean;
+  /** "z", "y", "w", "e" — upstream's own shorthand for what was settled. */
+  clinchIndicator?: string;
+  divisionChamp?: boolean;
+  magicNumber?: string;
+  eliminationNumber?: string;
+  wildCardEliminationNumber?: string;
+}
+
+export interface MlbStandingsResponse {
+  records: {
+    division?: { id: number };
+    league?: { id: number };
+    teamRecords: MlbTeamRecord[];
+  }[];
+}

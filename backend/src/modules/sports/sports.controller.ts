@@ -8,6 +8,7 @@ import {
   MatchupsQueryDto,
   PlayerDirectoryQueryDto,
   ScheduleQueryDto,
+  StandingsQueryDto,
 } from './dto/sport-views-query.dto.js';
 import { PlayerParamsDto, SportParamsDto } from './dto/sport-params.dto.js';
 import { StatsQueryDto } from './dto/stats-query.dto.js';
@@ -78,6 +79,14 @@ export class SportsController {
     @Query() query: GamePreviewQueryDto,
   ) {
     return this.sportsService.getGamePreview(sport, query);
+  }
+
+  @Get(SPORTS_ROUTES.standings)
+  standings(
+    @Param() { sport }: SportParamsDto,
+    @Query() query: StandingsQueryDto,
+  ) {
+    return this.sportsService.getStandings(sport, query);
   }
 
   @Get(SPORTS_ROUTES.starts)

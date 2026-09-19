@@ -18,6 +18,8 @@ import type {
   ScheduledGame,
   ScheduleQuery,
   SportCatalog,
+  StandingsGroup,
+  StandingsProvider,
   TeamGamesQuery,
   StatLinesQuery,
   TeamStrength,
@@ -25,6 +27,8 @@ import type {
 import { findGroup, seasonRange } from '../provider.utils.js';
 import {
   MLB_API,
+  MLB_LEAGUE_IDS,
+  MLB_STANDINGS_TYPE,
   MLB_CATALOG_BASE,
   MLB_GAME_TYPE,
   MLB_FIRST_SEASON,
@@ -42,6 +46,7 @@ import {
   mapRoster,
   mapSchedule,
   mapSeasonSplits,
+  mapStandings,
   mapTeamStrength,
   pitchingRole,
   teamId,
@@ -54,6 +59,7 @@ import type {
   MlbScheduleResponse,
   MlbSeasonsResponse,
   MlbSeasonSplit,
+  MlbStandingsResponse,
   MlbStatsResponse,
   MlbTeamsResponse,
   MlbTeamStatSplit,
@@ -63,7 +69,7 @@ const cacheKey = (...parts: (string | number)[]) =>
   [SPORTS_CACHE_VERSION, SPORT_KEYS.mlb, ...parts].join(':');
 
 @Injectable()
-export class MlbProvider implements LeagueDataProvider {
+export class MlbProvider implements LeagueDataProvider, StandingsProvider {
   readonly key = SPORT_KEYS.mlb;
   readonly matchupMetrics: Record<MatchupSide, MatchupMetric[]> =
     MLB_MATCHUP_METRICS;
@@ -232,6 +238,27 @@ export class MlbProvider implements LeagueDataProvider {
         return mapSchedule(response.dates, abbreviations);
       },
     );
+  }
+
+  /**
+   * The table, straight from upstream — which publishes the clinch and
+   * elimination numbers itself, so nothing here is computed. Cached live: a
+   * standings page moves once a night in the main, and every few minutes in
+   * late September.
+   */
+  async getStandings(season: string): Promise<StandingsGroup[]> {
+    const ttl = await this.ttlForSeason(season);
+
+    return this.cache.wrap(cacheKey('standings', season), ttl, async () => {
+      const [response, teams] = await Promise.all([
+        fetchJson<MlbStandingsResponse>(
+          `${MLB_API}/standings?leagueId=${MLB_LEAGUE_IDS.join(',')}` +
+            `&season=${season}&standingsTypes=${MLB_STANDINGS_TYPE}`,
+        ),
+        this.getTeams(season),
+      ]);
+      return mapStandings(response.records, teams);
+    });
   }
 
   async getTeamStrength(

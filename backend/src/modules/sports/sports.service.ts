@@ -13,6 +13,7 @@ import type {
 import { expectedPoints } from './analysis/expected-points.js';
 import { analyzeForm } from './analysis/form.js';
 import { playerHeadToHead, teamSeries } from './analysis/head-to-head.js';
+import { clinchNumbers } from './analysis/standings.js';
 import {
   recentResults,
   sumTeamStats,
@@ -40,6 +41,7 @@ import {
   PREVIEW_STATS_SOURCES,
   SORT_ORDERS,
   SPORT_PROVIDERS,
+  STANDINGS_METHOD,
   SPORTS_MESSAGES,
   START_CONFIDENCE,
   STARTS_COVERAGE,
@@ -73,6 +75,8 @@ import type {
   SportProvider,
   StartsReport,
   SeriesGame,
+  StandingsGroup,
+  StandingsReport,
   TeamSeries,
   TeamStrength,
 } from './sports.types.js';
@@ -82,6 +86,7 @@ import {
   matchPlayers,
   providesLeagueData,
   providesSchedule,
+  providesStandings,
   providesPlayerDirectory,
   providesOpportunityStats,
   resolveDateRange,
@@ -136,6 +141,7 @@ export class SportsService {
       ...(await provider.getCatalog()),
       capabilities: {
         schedule: providesSchedule(provider),
+        standings: providesStandings(provider),
         leagueData: providesLeagueData(provider),
         expectedPoints: providesOpportunityStats(provider),
         playerDirectory: providesPlayerDirectory(provider),
@@ -842,6 +848,44 @@ export class SportsService {
    * Everything else falls back to the date range, capped as always.
    */
   /**
+   * The league table, division by division. Where upstream publishes the
+   * clinch and elimination numbers they are passed through untouched; where it
+   * does not they are computed, and `method` says which of the two happened —
+   * a magic number a reader assumes is the league's own carries more weight
+   * than it has earned.
+   */
+  async getStandings(
+    sport: SportKey,
+    query: { season?: string; group?: string } = {},
+  ): Promise<StandingsReport> {
+    const provider = this.provider(sport);
+    if (!providesStandings(provider)) {
+      throw new BadRequestException(SPORTS_MESSAGES.noStandings(sport));
+    }
+
+    const catalog = await provider.getCatalog();
+    const season = query.season ?? catalog.defaultSeason;
+    const published = await provider.getStandings(season);
+    const gamesInSeason = seasonLength(published);
+
+    const groups = published.map((group) => ({
+      ...group,
+      teams: clinchNumbers(group.teams, gamesInSeason),
+    }));
+
+    return {
+      sport,
+      season,
+      groups: narrowStandings(groups, query.group),
+      method: published.some(({ teams }) =>
+        teams.some(({ magicNumber }) => magicNumber !== null),
+      )
+        ? STANDINGS_METHOD.upstream
+        : STANDINGS_METHOD.computed,
+    };
+  }
+
+  /**
    * Two teams set against one game: the fixture, both sides' recent results
    * and production, their leading scorers and the series between them. It is
    * built on the schedule capability alone, so it answers for any sport with
@@ -1231,4 +1275,55 @@ const selectPreviewGame = (
   return next
     ? { game: next, isUpcoming: true }
     : { game: ordered[ordered.length - 1] ?? null, isUpcoming: false };
+};
+
+/**
+ * How many games each club plays, taken from the table itself rather than
+ * declared per sport: a club's played-plus-remaining is the season length, and
+ * the fullest row is the one to trust when some club has a game in hand.
+ */
+const seasonLength = (groups: StandingsGroup[]) =>
+  Math.max(
+    0,
+    ...groups.flatMap(({ teams }) =>
+      teams.map(
+        ({ gamesPlayed, gamesRemaining }) => gamesPlayed + (gamesRemaining ?? 0),
+      ),
+    ),
+  );
+
+/**
+ * A table narrowed to one division or one conference. Matching both means
+ * "AFC" and "AFC East" are each a thing you can ask for, and an unknown name
+ * comes back with the list rather than an empty table that reads as "nobody
+ * is in that division".
+ */
+const narrowStandings = (groups: StandingsGroup[], group?: string) => {
+  if (!group) return groups;
+
+  // A division answers to its key and to its printed name, because "ALE" is
+  // how upstream spells it and "AL East" is how everyone else does.
+  const names = [
+    ...new Set(
+      groups.flatMap(({ key, name, conference }) => [
+        key,
+        name,
+        ...(conference ? [conference] : []),
+      ]),
+    ),
+  ].filter(Boolean);
+  const match = matchKey(names, group);
+  const narrowed = match
+    ? groups.filter(
+        ({ key, name, conference }) =>
+          key === match || name === match || conference === match,
+      )
+    : [];
+
+  if (!narrowed.length) {
+    throw new BadRequestException(
+      SPORTS_MESSAGES.unknownStandingsGroup(group, names),
+    );
+  }
+  return narrowed;
 };
