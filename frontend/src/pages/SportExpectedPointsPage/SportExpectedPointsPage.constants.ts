@@ -19,6 +19,12 @@ export const EXPECTED_SORT_KEYS = {
 export const EXPECTED_ROW_LIMIT = 100;
 export const DEFAULT_MIN_GAMES = 3;
 
+/** A fit needs games behind it, so the filter offers the thresholds worth using. */
+export const MIN_GAMES_OPTIONS = [0, 1, 3, 5, 8].map((value) => ({
+  value: String(value),
+  label: value === 0 ? 'Any' : String(value),
+}));
+
 export const EXPECTED_COPY = {
   caption: 'Production against opportunity',
   empty: 'No players match those filters.',

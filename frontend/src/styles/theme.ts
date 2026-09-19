@@ -48,3 +48,6 @@ export const theme = {
 } as const;
 
 export type Theme = typeof theme;
+
+/** The state palette's keys. Anything that colors by status picks one of these. */
+export type StatusTone = keyof Theme['colors']['status'];

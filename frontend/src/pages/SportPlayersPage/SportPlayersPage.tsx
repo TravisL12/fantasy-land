@@ -7,25 +7,20 @@ import {
 import { DataTable, type DataTableColumn } from '@/components/DataTable';
 import { Pagination } from '@/components/Pagination';
 import { Select } from '@/components/Select';
-import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
+import { SportView } from '@/components/SportView';
 import { TextField } from '@/components/TextField';
 import { useDebouncedCallback, useSearchParamsState } from '@/hooks';
 import { useSportContext } from '@/pages/SportPage';
-import { getApiErrorMessage } from '@/utils';
+import { buildPlayerStatsPath } from '@/router/routes.constants';
+import { EMPTY_STAT } from '@/utils';
 import {
   AVAILABILITY_LABELS,
   PLAYERS_COPY,
   PLAYERS_PAGE_SIZE,
   PLAYER_PARAMS,
   SEARCH_DEBOUNCE_MS,
-  playerPath,
 } from './SportPlayersPage.constants';
-import {
-  Explainer,
-  Layout,
-  PlayerLink,
-  Toolbar,
-} from './SportPlayersPage.styles';
+import { PlayerLink } from './SportPlayersPage.styles';
 
 const { columns: COLUMNS } = PLAYERS_COPY;
 
@@ -62,89 +57,90 @@ export const SportPlayersPage = () => {
       header: COLUMNS.player,
       sticky: true,
       render: (row) => (
-        <PlayerLink to={playerPath(catalog.key, row.id)}>{row.name}</PlayerLink>
+        <PlayerLink to={buildPlayerStatsPath(catalog.key, row.id)}>
+          {row.name}
+        </PlayerLink>
       ),
     },
     { key: 'team', header: COLUMNS.team, render: (row) => row.team ?? 'FA' },
     {
       key: 'position',
       header: COLUMNS.position,
-      render: (row) => row.position ?? '—',
+      render: (row) => row.position ?? EMPTY_STAT,
     },
-    { key: 'status', header: COLUMNS.status, render: (row) => row.status ?? '—' },
+    { key: 'status', header: COLUMNS.status, render: (row) => row.status ?? EMPTY_STAT },
     {
       key: 'availability',
       header: COLUMNS.availability,
-      render: (row) => AVAILABILITY_LABELS[row.availability] ?? row.availability,
+      render: (row) => AVAILABILITY_LABELS[row.availability],
     },
   ];
 
   const positions = catalog.groups.flatMap(({ positions: list }) => list);
 
   return (
-    <Layout>
-      <Explainer>{PLAYERS_COPY.explainer}</Explainer>
-      <Toolbar>
-        <TextField
-          label={PLAYERS_COPY.searchLabel}
-          placeholder={PLAYERS_COPY.searchPlaceholder}
-          value={searchInput}
-          onChange={(event) => {
-            setSearchInput(event.target.value);
-            commitSearch(event.target.value);
-          }}
-        />
-        <Select
-          label={PLAYERS_COPY.positionLabel}
-          value={position}
-          options={[
-            { value: '', label: PLAYERS_COPY.all },
-            ...positions.map((value) => ({ value, label: value })),
-          ]}
-          onChange={(value) =>
-            update({ [PLAYER_PARAMS.position]: value, [PLAYER_PARAMS.page]: null })
-          }
-        />
-        <Select
-          label={PLAYERS_COPY.availabilityLabel}
-          value={availability}
-          options={[
-            { value: '', label: PLAYERS_COPY.all },
-            ...Object.entries(AVAILABILITY_LABELS).map(([value, label]) => ({
-              value,
-              label,
-            })),
-          ]}
-          onChange={(value) =>
-            update({
-              [PLAYER_PARAMS.availability]: value,
-              [PLAYER_PARAMS.page]: null,
-            })
-          }
-        />
-      </Toolbar>
-      {error ? (
-        <StatusMessage variant={STATUS_VARIANTS.error}>
-          {getApiErrorMessage(error)}
-        </StatusMessage>
-      ) : (
+    <SportView
+      explainer={PLAYERS_COPY.explainer}
+      error={error}
+      toolbar={
         <>
-          <DataTable
-            caption={PLAYERS_COPY.caption}
-            columns={columns}
-            rows={data?.players ?? []}
-            getRowKey={(row) => row.id}
-            emptyMessage={PLAYERS_COPY.empty}
-            isFetching={isFetching}
+          <TextField
+            label={PLAYERS_COPY.searchLabel}
+            placeholder={PLAYERS_COPY.searchPlaceholder}
+            value={searchInput}
+            onChange={(event) => {
+              setSearchInput(event.target.value);
+              commitSearch(event.target.value);
+            }}
           />
-          <Pagination
-            page={page}
-            pageSize={PLAYERS_PAGE_SIZE}
-            total={data?.total ?? 0}
-            onPageChange={(next) => update({ [PLAYER_PARAMS.page]: next })}
+          <Select
+            label={PLAYERS_COPY.positionLabel}
+            value={position}
+            options={[
+              { value: '', label: PLAYERS_COPY.all },
+              ...positions.map((value) => ({ value, label: value })),
+            ]}
+            onChange={(value) =>
+              update({
+                [PLAYER_PARAMS.position]: value,
+                [PLAYER_PARAMS.page]: null,
+              })
+            }
+          />
+          <Select
+            label={PLAYERS_COPY.availabilityLabel}
+            value={availability}
+            options={[
+              { value: '', label: PLAYERS_COPY.all },
+              ...Object.entries(AVAILABILITY_LABELS).map(([value, label]) => ({
+                value,
+                label,
+              })),
+            ]}
+            onChange={(value) =>
+              update({
+                [PLAYER_PARAMS.availability]: value,
+                [PLAYER_PARAMS.page]: null,
+              })
+            }
           />
         </>
-      )}
-    </Layout>
+      }
+    >
+      <DataTable
+        caption={PLAYERS_COPY.caption}
+        columns={columns}
+        rows={data?.players ?? []}
+        getRowKey={(row) => row.id}
+        emptyMessage={PLAYERS_COPY.empty}
+        isFetching={isFetching}
+      />
+      <Pagination
+        page={page}
+        pageSize={PLAYERS_PAGE_SIZE}
+        total={data?.total ?? 0}
+        onPageChange={(next) => update({ [PLAYER_PARAMS.page]: next })}
+      />
+    </SportView>
   );
 };

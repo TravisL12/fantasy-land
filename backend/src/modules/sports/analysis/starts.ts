@@ -1,7 +1,73 @@
 import { clamp, median } from '../../../common/math/number.js';
 import { START_CONFIDENCE, START_PROJECTION } from '../sports.constants.js';
-import type { ProjectedStart, StartConfidence } from '../sports.types.js';
+import type {
+  PlayerRef,
+  ProjectedStart,
+  ScheduledGame,
+  StartConfidence,
+} from '../sports.types.js';
 import { addDays, daysBetween } from '../sports.utils.js';
+
+/** Date → opponent for each team, so a projected start can land on a real game. */
+export type TeamSchedules = Map<
+  string,
+  Map<string, { opponent: string; isHome: boolean }>
+>;
+
+export const teamSchedules = (games: ScheduledGame[]): TeamSchedules => {
+  const byTeam: TeamSchedules = new Map();
+  for (const game of games) {
+    for (const [team, opponent, isHome] of [
+      [game.home, game.away, true],
+      [game.away, game.home, false],
+    ] as const) {
+      const dates = byTeam.get(team) ?? new Map();
+      dates.set(game.date, { opponent, isHome });
+      byTeam.set(team, dates);
+    }
+  }
+  return byTeam;
+};
+
+/** Every announced starter in the window, with the starts they are announced for. */
+export interface ConfirmedStarts {
+  player: PlayerRef;
+  starts: ProjectedStart[];
+}
+
+/**
+ * The announced half of a starts report: upstream's probable pitchers, folded
+ * per pitcher so a two-start week is one entry rather than two games.
+ */
+export const confirmedStarts = (
+  games: ScheduledGame[],
+): Map<string, ConfirmedStarts> => {
+  const byPitcher = new Map<string, ConfirmedStarts>();
+
+  for (const game of games) {
+    for (const starter of [game.probables.away, game.probables.home]) {
+      if (!starter) continue;
+      const entry = byPitcher.get(starter.playerId) ?? {
+        player: {
+          id: starter.playerId,
+          name: starter.name,
+          team: starter.team,
+          position: null,
+        },
+        starts: [],
+      };
+      entry.starts.push({
+        date: game.date,
+        opponent: starter.opponent,
+        isHome: starter.isHome,
+        confidence: START_CONFIDENCE.confirmed,
+      });
+      byPitcher.set(starter.playerId, entry);
+    }
+  }
+
+  return byPitcher;
+};
 
 /**
  * Typical days between starts, from the most recent starts only — a pitcher

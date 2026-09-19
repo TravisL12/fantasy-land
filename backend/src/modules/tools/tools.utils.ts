@@ -1,7 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { clamp } from '../../common/math/number.js';
 import { SPORT_KEYS } from '../sports/sports.constants.js';
-import type { SportKey, StatGroup } from '../sports/sports.types.js';
+import type {
+  MatchupRating,
+  SportKey,
+  StatGroup,
+} from '../sports/sports.types.js';
 import { matchKey, resolveStatKey } from '../sports/sports.utils.js';
 import { ROW_LEVEL_FIELDS, TOOL_MESSAGES } from './tools.constants.js';
 import type { ToolLimit } from './tools.types.js';
@@ -154,4 +158,19 @@ export const pickStats = <T>(
   return Object.fromEntries(
     Object.entries(stats).filter(([key]) => keys.has(key)),
   );
+};
+
+/**
+ * A matchup as a chat turn needs it: the score and the grade it is compared
+ * on. The per-metric breakdown is dropped — it is three labelled objects per
+ * start, repeated for every pitcher in the window, and get_matchup_ratings
+ * exists to answer "why" when the question actually asks.
+ */
+export const compactMatchup = (
+  matchup: MatchupRating | null | undefined,
+  full = false,
+) => {
+  if (!matchup || full) return matchup ?? null;
+  const { score, grade } = matchup;
+  return { score, grade };
 };

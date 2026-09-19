@@ -8,6 +8,7 @@ import type {
   StatValues,
   TeamRecord,
 } from '../sports.types.js';
+import { toIsoDate } from '../sports.utils.js';
 import { toSeriesGame, winnerOf } from './head-to-head.js';
 
 const emptyRecord = (): TeamRecord => ({
@@ -111,3 +112,31 @@ export const teamLeaders = (
         keys.flatMap((key) => (key in stats ? [[key, stats[key]]] : [])),
       ),
     }));
+
+/**
+ * The game a preview is about: the one named, else the next one still to come,
+ * else the last meeting there was. "Still to come" is measured against today
+ * and not merely against having a score, because a postponed game keeps no
+ * score for ever and would otherwise be previewed as the next meeting months
+ * after it was called off. A season whose fixtures are all behind them is a
+ * real state of affairs, so the last one is reported rather than nothing.
+ */
+export const selectPreviewGame = (
+  games: SeriesGame[],
+  gameId?: string,
+): { game: SeriesGame | null; isUpcoming: boolean } => {
+  if (gameId) {
+    const named = games.find((game) => game.gameId === gameId) ?? null;
+    return { game: named, isUpcoming: named?.score === null };
+  }
+
+  const ordered = [...games].sort((a, b) => a.date.localeCompare(b.date));
+  const today = toIsoDate(new Date());
+  const next = ordered.find(
+    ({ score, date }) => score === null && date >= today,
+  );
+
+  return next
+    ? { game: next, isUpcoming: true }
+    : { game: ordered[ordered.length - 1] ?? null, isUpcoming: false };
+};

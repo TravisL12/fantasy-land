@@ -13,15 +13,15 @@ import type { VersusPanelProps } from './VersusPanel.types';
 export const VersusPanel = ({ widget, rows }: VersusPanelProps) => {
   const entities = useMemo<MetricEntity[]>(
     () =>
-      rows.map((data, index) => ({
-        key: String(
-          getPath(data, widget.labelPath ?? DEFAULT_LABEL_PATH) ?? index,
-        ),
-        label: formatCell(
-          getPath(data, widget.labelPath ?? DEFAULT_LABEL_PATH) ?? index + 1,
-        ),
-        data,
-      })),
+      rows.map((data, index) => {
+        const label = getPath(data, widget.labelPath ?? DEFAULT_LABEL_PATH);
+        // Falls back to the row's position, 1-based for the label a person reads.
+        return {
+          key: String(label ?? index),
+          label: formatCell(label ?? index + 1),
+          data,
+        };
+      }),
     [rows, widget.labelPath],
   );
 

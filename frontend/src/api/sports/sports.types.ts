@@ -235,8 +235,15 @@ export interface DateWindowQuery {
   days?: number;
 }
 
-export interface ProbableStarter extends PlayerRef {
+/**
+ * Note this is not a PlayerRef: the schedule identifies a starter by
+ * `playerId` and carries no position. The rating is how tough the opponent is
+ * to face, attached by the service rather than by the provider.
+ */
+export interface ProbableStarter {
   playerId: string;
+  name: string;
+  team: string;
   opponent: string;
   isHome: boolean;
   matchup: MatchupRating | null;

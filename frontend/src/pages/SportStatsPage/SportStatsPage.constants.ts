@@ -1,5 +1,3 @@
-import { ROUTES } from '@/router/routes.constants';
-
 export const PAGE_SIZE = 50;
 export const SEARCH_DEBOUNCE_MS = 300;
 
@@ -24,11 +22,3 @@ export const SORT_KEYS = {
   name: 'name',
 } as const;
 
-export const SPORT_STATS_COPY = {
-  title: (league: string) => `${league} stats`,
-  subtitle: (source: string) =>
-    `Data from ${source}. Click a column to sort, or a player for their game log.`,
-  back: { to: ROUTES.sports, label: 'All sports' },
-  loading: 'Loading…',
-  notFound: 'That sport isn’t available.',
-} as const;

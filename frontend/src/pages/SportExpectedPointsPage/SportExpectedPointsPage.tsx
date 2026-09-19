@@ -5,23 +5,18 @@ import {
 import { DataTable, type DataTableColumn } from '@/components/DataTable';
 import { SeasonSelect } from '@/components/SeasonSelect';
 import { Select } from '@/components/Select';
-import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
+import { SportView } from '@/components/SportView';
 import { useSportContext } from '@/pages/SportPage';
-import { getApiErrorMessage } from '@/utils';
+import { EMPTY_STAT } from '@/utils';
 import {
   EXPECTED_COPY,
   EXPECTED_PARAMS,
   EXPECTED_ROW_LIMIT,
   EXPECTED_SORT_KEYS,
+  MIN_GAMES_OPTIONS,
 } from './SportExpectedPointsPage.constants';
 import { useExpectedPointsFilters } from './SportExpectedPointsPage.hooks';
-import {
-  Delta,
-  Explainer,
-  Layout,
-  Models,
-  Toolbar,
-} from './SportExpectedPointsPage.styles';
+import { Delta, Models } from './SportExpectedPointsPage.styles';
 
 const { columns: COLUMNS, titles: TITLES } = EXPECTED_COPY;
 
@@ -34,11 +29,11 @@ const columns: DataTableColumn<ExpectedPointsRow>[] = [
     sticky: true,
     render: (row) => row.player.name,
   },
-  { key: 'team', header: COLUMNS.team, render: (row) => row.player.team ?? '—' },
+  { key: 'team', header: COLUMNS.team, render: (row) => row.player.team ?? EMPTY_STAT },
   {
     key: 'position',
     header: COLUMNS.position,
-    render: (row) => row.player.position ?? '—',
+    render: (row) => row.player.position ?? EMPTY_STAT,
   },
   { key: 'games', header: COLUMNS.games, align: 'right', render: (row) => row.gamesPlayed },
   {
@@ -98,14 +93,9 @@ const columns: DataTableColumn<ExpectedPointsRow>[] = [
     title: TITLES.efficiency,
     align: 'right',
     sortable: true,
-    render: (row) => row.efficiency?.toFixed(2) ?? '—',
+    render: (row) => row.efficiency?.toFixed(2) ?? EMPTY_STAT,
   },
 ];
-
-const MIN_GAMES_OPTIONS = [0, 1, 3, 5, 8].map((value) => ({
-  value: String(value),
-  label: value === 0 ? 'Any' : String(value),
-}));
 
 /** Usage against production: who is outscoring their chances, and who is not. */
 export const SportExpectedPointsPage = () => {
@@ -125,69 +115,65 @@ export const SportExpectedPointsPage = () => {
   const positions = catalog.groups.flatMap(({ positions: list }) => list);
 
   return (
-    <Layout>
-      <Explainer>{EXPECTED_COPY.explainer}</Explainer>
-      <Toolbar>
-        <SeasonSelect
-          catalog={catalog}
-          value={filters.season}
-          onChange={(season) => update({ [EXPECTED_PARAMS.season]: season })}
-        />
-        <Select
-          label={EXPECTED_COPY.positionLabel}
-          value={filters.position ?? ''}
-          options={[
-            { value: '', label: EXPECTED_COPY.allPositions },
-            ...positions.map((position) => ({
-              value: position,
-              label: position,
-            })),
-          ]}
-          onChange={(position) =>
-            update({ [EXPECTED_PARAMS.position]: position })
-          }
-        />
-        <Select
-          label={EXPECTED_COPY.minGamesLabel}
-          value={String(filters.minGames)}
-          options={MIN_GAMES_OPTIONS}
-          onChange={(minGames) =>
-            update({ [EXPECTED_PARAMS.minGames]: minGames })
-          }
-        />
-      </Toolbar>
-      {error ? (
-        <StatusMessage variant={STATUS_VARIANTS.error}>
-          {getApiErrorMessage(error)}
-        </StatusMessage>
-      ) : (
+    <SportView
+      explainer={EXPECTED_COPY.explainer}
+      error={error}
+      toolbar={
         <>
-          <DataTable
-            caption={EXPECTED_COPY.caption}
-            columns={columns}
-            rows={data?.rows ?? []}
-            getRowKey={(row) => row.player.id}
-            sort={{ key: filters.sort, order: filters.order }}
-            onSort={toggleSort}
-            emptyMessage={EXPECTED_COPY.empty}
-            isFetching={isFetching}
+          <SeasonSelect
+            catalog={catalog}
+            value={filters.season}
+            onChange={(season) => update({ [EXPECTED_PARAMS.season]: season })}
           />
-          {!!data?.models.length && (
-            <Models>
-              <span>{EXPECTED_COPY.modelsLabel}</span>
-              {data.models.map((model) => (
-                <span key={model.position}>
-                  {EXPECTED_COPY.model(
-                    model.position,
-                    model.observations,
-                    model.rSquared,
-                  )}
-                </span>
-              ))}
-            </Models>
-          )}
+          <Select
+            label={EXPECTED_COPY.positionLabel}
+            value={filters.position ?? ''}
+            options={[
+              { value: '', label: EXPECTED_COPY.allPositions },
+              ...positions.map((position) => ({
+                value: position,
+                label: position,
+              })),
+            ]}
+            onChange={(position) =>
+              update({ [EXPECTED_PARAMS.position]: position })
+            }
+          />
+          <Select
+            label={EXPECTED_COPY.minGamesLabel}
+            value={String(filters.minGames)}
+            options={MIN_GAMES_OPTIONS}
+            onChange={(minGames) =>
+              update({ [EXPECTED_PARAMS.minGames]: minGames })
+            }
+          />
         </>
+      }
+    >
+      <DataTable
+        caption={EXPECTED_COPY.caption}
+        columns={columns}
+        rows={data?.rows ?? []}
+        getRowKey={(row) => row.player.id}
+        sort={{ key: filters.sort, order: filters.order }}
+        onSort={toggleSort}
+        emptyMessage={EXPECTED_COPY.empty}
+        isFetching={isFetching}
+      />
+      {!!data?.models.length && (
+        <Models>
+          <span>{EXPECTED_COPY.modelsLabel}</span>
+          {data.models.map((model) => (
+            <span key={model.position}>
+              {EXPECTED_COPY.model(
+                model.position,
+                model.observations,
+                model.rSquared,
+              )}
+            </span>
+          ))}
+        </Models>
       )}
-    </Layout>
+    </SportView>
   );
 };

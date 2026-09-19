@@ -1,3 +1,4 @@
+import { round } from '../../../../common/math/number.js';
 import {
   AVAILABILITY,
   CLINCH_STATUS,
@@ -149,8 +150,6 @@ export const mapWeeklyLog = (
       stats: pickStats(entry.stats, statKeys(group)),
     }))
     .sort((a, b) => (a.week ?? 0) - (b.week ?? 0));
-
-const round = (value: number) => Math.round(value * 100) / 100;
 
 /** Sums weekly stat lines into season lines, then rebuilds rate stats from the totals. */
 export const aggregateStatLines = (

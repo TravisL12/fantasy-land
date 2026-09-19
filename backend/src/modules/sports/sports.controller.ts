@@ -17,6 +17,7 @@ import type {
   SportCatalogResponseDto,
   StatsResponseDto,
 } from './dto/stats-response.dto.js';
+import type { GamePreview, StandingsReport } from './sports.types.js';
 import { SPORTS_ROUTE, SPORTS_ROUTES } from './sports.constants.js';
 import { SportsService } from './sports.service.js';
 
@@ -77,7 +78,7 @@ export class SportsController {
   preview(
     @Param() { sport }: SportParamsDto,
     @Query() query: GamePreviewQueryDto,
-  ) {
+  ): Promise<GamePreview> {
     return this.sportsService.getGamePreview(sport, query);
   }
 
@@ -85,7 +86,7 @@ export class SportsController {
   standings(
     @Param() { sport }: SportParamsDto,
     @Query() query: StandingsQueryDto,
-  ) {
+  ): Promise<StandingsReport> {
     return this.sportsService.getStandings(sport, query);
   }
 

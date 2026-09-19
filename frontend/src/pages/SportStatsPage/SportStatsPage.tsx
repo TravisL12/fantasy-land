@@ -1,4 +1,4 @@
-import { type SportCatalog, useGetSportStatsQuery } from '@/api/sports';
+import { useGetSportStatsQuery } from '@/api/sports';
 import { Pagination } from '@/components/Pagination';
 import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
 import { useStatColumns } from '@/hooks';
@@ -15,10 +15,6 @@ import { Layout } from './SportStatsPage.styles';
 /** The leaderboard view: the sport layout owns the header, tabs and catalog. */
 export const SportStatsPage = () => {
   const { catalog } = useSportContext();
-  return <SportStatsExplorer catalog={catalog} />;
-};
-
-const SportStatsExplorer = ({ catalog }: { catalog: SportCatalog }) => {
   const { filters, setFilters, setGroup, setPage, toggleSort } =
     useStatsFilters(catalog);
   const statColumns = useStatColumns(catalog.key, filters.group);

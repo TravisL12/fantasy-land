@@ -20,37 +20,35 @@ import {
   PREVIEW_DEFAULTS,
   SCHEDULE_DEFAULTS,
   SEARCH_MAX_LENGTH,
-  SEASON_PATTERN,
   SORT_ORDERS,
   STATS_QUERY_DEFAULTS,
 } from '../sports.constants.js';
 import type { MatchupSide, SortOrder } from '../sports.types.js';
+import {
+  ScoredSeasonQueryDto,
+  SeasonQueryDto,
+} from './sport-query.dto.js';
 
 /** A repeated query param arrives as a string when it appears only once. */
 const toArray = ({ value }: { value: unknown }): string[] =>
   Array.isArray(value) ? value.map(String) : value ? [String(value)] : [];
 
-class SeasonQueryDto {
-  @IsOptional()
-  @Matches(SEASON_PATTERN)
-  season?: string;
-}
+/**
+ * The same, for a list of numbers. Everything in a query string is a string,
+ * and `@Type(() => Number)` does not reach inside an array — so without this
+ * `?weeks=3` failed `@IsInt({ each: true })` and the whole request was
+ * rejected, which is what took the schedule's week filter down.
+ */
+const toNumberArray = ({ value }: { value: unknown }): number[] =>
+  toArray({ value }).map(Number);
 
-export class ExpectedPointsQueryDto extends SeasonQueryDto {
+export class ExpectedPointsQueryDto extends ScoredSeasonQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(MAX_WEEK)
   week?: number;
-
-  @IsOptional()
-  @IsString()
-  group?: string;
-
-  @IsOptional()
-  @IsString()
-  scoring?: string;
 
   @IsOptional()
   @IsString()
@@ -139,16 +137,15 @@ export class DateWindowQueryDto extends SeasonQueryDto {
 /** The schedule view, which may also be asked for weeks where a sport has them. */
 export class ScheduleQueryDto extends DateWindowQueryDto {
   @IsOptional()
-  @Transform(toArray)
+  @Transform(toNumberArray)
   @IsArray()
-  @Type(() => Number)
   @IsInt({ each: true })
   @Min(1, { each: true })
   @Max(MAX_WEEK, { each: true })
   weeks?: number[];
 }
 
-export class GamePreviewQueryDto extends SeasonQueryDto {
+export class GamePreviewQueryDto extends ScoredSeasonQueryDto {
   @IsString()
   teamA!: string;
 
@@ -160,13 +157,20 @@ export class GamePreviewQueryDto extends SeasonQueryDto {
   @IsString()
   gameId?: string;
 
+  /**
+   * The interval the two teams are measured over. Both are needed to narrow
+   * team production; one alone only narrows the fixtures. The ValidationPipe
+   * whitelists, so a field missing here is dropped in silence rather than
+   * rejected — which is how the route came to ignore an interval the service
+   * and the tool both honour.
+   */
   @IsOptional()
-  @IsString()
-  group?: string;
+  @Matches(DATE_PATTERN)
+  startDate?: string;
 
   @IsOptional()
-  @IsString()
-  scoring?: string;
+  @Matches(DATE_PATTERN)
+  endDate?: string;
 
   @IsOptional()
   @Type(() => Number)

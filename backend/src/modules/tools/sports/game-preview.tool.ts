@@ -6,7 +6,13 @@ import type {
   ToolContext,
   ToolDefinition,
 } from '../tools.types.js';
-import { asLimit, asSport, asString, requireString } from '../tools.utils.js';
+import {
+  asLimit,
+  asSport,
+  asString,
+  compactMatchup,
+  requireString,
+} from '../tools.utils.js';
 import {
   GROUP_PARAM,
   PREVIEW_LEADERS,
@@ -96,7 +102,7 @@ export class GamePreviewTool implements FantasyTool {
               asOpponent: Object.fromEntries(
                 Object.entries(asOpponent).map(([side, rating]) => [
                   side,
-                  rating ? { score: rating.score, grade: rating.grade } : null,
+                  compactMatchup(rating),
                 ]),
               ),
             }

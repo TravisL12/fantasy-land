@@ -5,7 +5,7 @@ import {
 } from '../../../../common/http/fetch-json.js';
 import { CACHE_TTL } from '../../../data-cache/data-cache.constants.js';
 import { DataCacheService } from '../../../data-cache/data-cache.service.js';
-import { SPORT_KEYS, SPORTS_CACHE_VERSION } from '../../sports.constants.js';
+import { SPORT_KEYS } from '../../sports.constants.js';
 import type {
   DateRange,
   GameLog,
@@ -24,7 +24,12 @@ import type {
   StatLinesQuery,
   TeamStrength,
 } from '../../sports.types.js';
-import { findGroup, seasonRange } from '../provider.utils.js';
+import {
+  cacheKeyFor,
+  findGroup,
+  seasonRange,
+  seasonTtl,
+} from '../provider.utils.js';
 import {
   MLB_API,
   MLB_LEAGUE_IDS,
@@ -65,8 +70,7 @@ import type {
   MlbTeamStatSplit,
 } from './mlb.types.js';
 
-const cacheKey = (...parts: (string | number)[]) =>
-  [SPORTS_CACHE_VERSION, SPORT_KEYS.mlb, ...parts].join(':');
+const cacheKey = cacheKeyFor(SPORT_KEYS.mlb);
 
 @Injectable()
 export class MlbProvider implements LeagueDataProvider, StandingsProvider {
@@ -354,7 +358,7 @@ export class MlbProvider implements LeagueDataProvider, StandingsProvider {
 
   private async ttlForSeason(season: string) {
     const { seasonId } = await this.getCurrentSeason();
-    return season === seasonId ? CACHE_TTL.live : CACHE_TTL.archived;
+    return seasonTtl(season, seasonId);
   }
 }
 

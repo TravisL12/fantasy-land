@@ -1,5 +1,9 @@
 import { CLINCH_STATUS } from '../sports.constants.js';
-import type { ClinchStatus, StandingsEntry } from '../sports.types.js';
+import type {
+  ClinchStatus,
+  StandingsEntry,
+  StandingsGroup,
+} from '../sports.types.js';
 
 /** A tie is half a win to both sides, which is how a league with draws ranks. */
 const effectiveWins = ({ wins, ties }: Pick<StandingsEntry, 'wins' | 'ties'>) =>
@@ -49,8 +53,6 @@ export const clinchNumbers = (
   return teams.map((team) => {
     const rivals = teams.filter(({ team: other }) => other !== team.team);
 
-    // The hardest rival to shake sets the magic number, and the club best
-    // placed to shake this one sets its elimination number.
     // Winning the group means shaking every rival, so the hardest one sets the
     // magic number; being put out of it takes only one, so the best-placed
     // rival sets the elimination number.
@@ -72,6 +74,21 @@ export const clinchNumbers = (
     };
   });
 };
+
+/**
+ * How many games each club plays, taken from the table itself rather than
+ * declared per sport: a club's played-plus-remaining is the season length, and
+ * the fullest row is the one to trust when some club has a game in hand.
+ */
+export const seasonLength = (groups: StandingsGroup[]) =>
+  Math.max(
+    0,
+    ...groups.flatMap(({ teams }) =>
+      teams.map(
+        ({ gamesPlayed, gamesRemaining }) => gamesPlayed + (gamesRemaining ?? 0),
+      ),
+    ),
+  );
 
 /**
  * Zero either way settles it. Anything above zero is still a race, however

@@ -18,6 +18,7 @@ import {
   asSport,
   asString,
   asStringArray,
+  compactMatchup,
 } from '../tools.utils.js';
 import {
   BASEBALL_SPORT_PARAM,
@@ -27,7 +28,6 @@ import {
   START_DATE_PARAM,
   TEAM_PARAM,
 } from './baseball-tools.constants.js';
-import { compactMatchup } from './baseball-tools.utils.js';
 
 /**
  * Every "who is pitching, and when" question.

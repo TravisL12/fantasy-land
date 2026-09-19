@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import type { SportsService } from '../../sports/sports.service.js';
 import { MatchupRatingsTool } from './matchup-ratings.tool.js';
 import { PitcherStartsTool } from './pitcher-starts.tool.js';

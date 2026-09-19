@@ -1,3 +1,6 @@
+import type { Availability } from '@/api/sports';
+import type { StatusTone } from '@/styles';
+
 export const AVAILABILITY_PARAMS = {
   season: 'season',
   availability: 'availability',
@@ -5,14 +8,14 @@ export const AVAILABILITY_PARAMS = {
   search: 'q',
 } as const;
 
-export const AVAILABILITY_LABELS: Record<string, string> = {
+export const AVAILABILITY_LABELS: Record<Availability, string> = {
   active: 'Active',
   injured: 'Injured',
   minors: 'Minors',
   inactive: 'Inactive',
 };
 
-export const AVAILABILITY_TONES: Record<string, string> = {
+export const AVAILABILITY_TONES: Record<Availability, StatusTone> = {
   active: 'good',
   injured: 'critical',
   minors: 'warning',

@@ -1,25 +1,5 @@
 import styled from 'styled-components';
-
-export const Layout = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing(3)};
-`;
-
-export const Toolbar = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: ${({ theme }) => theme.spacing(3)};
-`;
-
-export const Explainer = styled.p`
-  margin: 0;
-  max-width: 70ch;
-  color: ${({ theme }) => theme.colors.textMuted};
-  font-size: 0.9rem;
-  line-height: 1.5;
-`;
+import type { ToneProps } from './SportMatchupsPage.types';
 
 /** The bar is the rating; the number beside it is for anyone who needs exactness. */
 export const Meter = styled.div`
@@ -37,16 +17,14 @@ export const Track = styled.div`
   overflow: hidden;
 `;
 
-export const Fill = styled.div<{ $percent: number; $tone: string }>`
+export const Fill = styled.div<ToneProps & { $percent: number }>`
   width: ${({ $percent }) => `${$percent}%`};
   height: 100%;
-  background: ${({ $tone, theme }) =>
-    theme.colors.status[$tone as keyof typeof theme.colors.status]};
+  background: ${({ $tone, theme }) => theme.colors.status[$tone]};
 `;
 
-export const Grade = styled.span<{ $tone: string }>`
-  color: ${({ $tone, theme }) =>
-    theme.colors.status[$tone as keyof typeof theme.colors.status]};
+export const Grade = styled.span<ToneProps>`
+  color: ${({ $tone, theme }) => theme.colors.status[$tone]};
   font-weight: 600;
   text-transform: capitalize;
 `;

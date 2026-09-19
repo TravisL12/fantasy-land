@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -15,8 +14,8 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import { openSseStream, writeSseEvent } from '../../common/http/sse.js';
-import { CHAT_MESSAGES, CHAT_ROLES } from '../chat/chat.constants.js';
+import { pipeSseStream } from '../../common/http/sse.js';
+import { assertUserTurn } from '../chat/chat.utils.js';
 import type { PublicUser } from '../users/users.types.js';
 import { DashboardBuilderService } from './dashboard-builder.service.js';
 import { DASHBOARDS_ROUTE, DASHBOARDS_ROUTES } from './dashboards.constants.js';
@@ -51,24 +50,12 @@ export class DashboardsController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    if (messages.at(-1)?.role !== CHAT_ROLES.user) {
-      throw new BadRequestException(CHAT_MESSAGES.lastMustBeUser);
-    }
-
-    const controller = new AbortController();
-    req.on('close', () => controller.abort());
-    openSseStream(res);
+    assertUserTurn(messages);
 
     const current = spec ? this.dashboards.validate(spec) : undefined;
-    for await (const event of this.builder.build(
-      messages,
-      controller.signal,
-      current,
-    )) {
-      if (controller.signal.aborted) break;
-      writeSseEvent(res, event);
-    }
-    res.end();
+    return pipeSseStream(req, res, (signal) =>
+      this.builder.build(messages, signal, current),
+    );
   }
 
   @Post()

@@ -1,3 +1,4 @@
+import { mean, round } from '../../../common/math/number.js';
 import {
   SERIES_DEFAULTS,
   WINDOW_DEFAULTS,
@@ -13,8 +14,6 @@ import type {
   SeriesRecord,
   TeamSeries,
 } from '../sports.types.js';
-
-const round = (value: number) => Math.round(value * 100) / 100;
 
 /**
  * Games are matched on week where the sport has one and on date otherwise.
@@ -77,8 +76,7 @@ export const playerHeadToHead = (
       const others = players
         .filter(({ player: other }) => other.id !== player.id)
         .map(({ player: other }) => game.points[other.id]);
-      const field = others.reduce((sum, p) => sum + p, 0) / others.length;
-      return game.points[player.id] - field;
+      return game.points[player.id] - mean(others);
     });
 
     return {
@@ -86,9 +84,7 @@ export const playerHeadToHead = (
       name: player.name,
       wins: games.filter((game) => game.winner === player.id).length,
       ties: games.filter((game) => game.winner === null).length,
-      averageMargin: margins.length
-        ? round(margins.reduce((sum, m) => sum + m, 0) / margins.length)
-        : 0,
+      averageMargin: margins.length ? round(mean(margins)) : 0,
     };
   });
 

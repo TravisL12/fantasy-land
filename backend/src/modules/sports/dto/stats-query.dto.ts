@@ -13,18 +13,14 @@ import {
   DATA_KINDS,
   MAX_WEEK,
   SEARCH_MAX_LENGTH,
-  SEASON_PATTERN,
   SORT_KEY_PATTERN,
   SORT_ORDERS,
   STATS_QUERY_DEFAULTS,
 } from '../sports.constants.js';
 import type { DataKind, SortOrder } from '../sports.types.js';
+import { ScoredSeasonQueryDto } from './sport-query.dto.js';
 
-export class StatsQueryDto {
-  @IsOptional()
-  @Matches(SEASON_PATTERN)
-  season?: string;
-
+export class StatsQueryDto extends ScoredSeasonQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -34,19 +30,11 @@ export class StatsQueryDto {
 
   @IsOptional()
   @IsString()
-  group?: string;
-
-  @IsOptional()
-  @IsString()
   position?: string;
 
   @IsOptional()
   @IsIn(Object.values(DATA_KINDS))
   kind: DataKind = DATA_KINDS.stats;
-
-  @IsOptional()
-  @IsString()
-  scoring?: string;
 
   @IsOptional()
   @Matches(SORT_KEY_PATTERN)

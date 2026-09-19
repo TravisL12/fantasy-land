@@ -2,10 +2,9 @@ import { type MatchupsResponse, useGetMatchupsQuery } from '@/api/sports';
 import { DataTable, type DataTableColumn } from '@/components/DataTable';
 import { SeasonSelect } from '@/components/SeasonSelect';
 import { SegmentedControl } from '@/components/SegmentedControl';
-import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
+import { SportView } from '@/components/SportView';
 import { useSearchParamsState } from '@/hooks';
 import { useSportContext } from '@/pages/SportPage';
-import { getApiErrorMessage } from '@/utils';
 import {
   GRADE_TONES,
   MATCHUP_COPY,
@@ -14,13 +13,10 @@ import {
   SIDE_LABELS,
 } from './SportMatchupsPage.constants';
 import {
-  Explainer,
   Fill,
   Grade,
-  Layout,
   Meter,
   Metrics,
-  Toolbar,
   Track,
 } from './SportMatchupsPage.styles';
 
@@ -34,33 +30,26 @@ const columns: DataTableColumn<TeamRating>[] = [
     key: 'score',
     header: COLUMNS.score,
     highlight: true,
-    render: (row) => {
-      const tone = GRADE_TONES[row.grade] ?? 'neutral';
-      return (
-        <Meter>
-          <Track>
-            <Fill $percent={row.score} $tone={tone} />
-          </Track>
-          <span>{row.score.toFixed(1)}</span>
-        </Meter>
-      );
-    },
+    render: (row) => (
+      <Meter>
+        <Track>
+          <Fill $percent={row.score} $tone={GRADE_TONES[row.grade]} />
+        </Track>
+        <span>{row.score.toFixed(1)}</span>
+      </Meter>
+    ),
   },
   {
     key: 'grade',
     header: COLUMNS.grade,
-    render: (row) => (
-      <Grade $tone={GRADE_TONES[row.grade] ?? 'neutral'}>{row.grade}</Grade>
-    ),
+    render: (row) => <Grade $tone={GRADE_TONES[row.grade]}>{row.grade}</Grade>,
   },
   {
     key: 'metrics',
     header: COLUMNS.metrics,
     render: (row) => (
       <Metrics>
-        {row.metrics
-          .map(({ label, value }) => `${label} ${value}`)
-          .join(' · ')}
+        {row.metrics.map(({ label, value }) => `${label} ${value}`).join(' · ')}
       </Metrics>
     ),
   },
@@ -84,38 +73,36 @@ export const SportMatchupsPage = () => {
   });
 
   return (
-    <Layout>
-      <Explainer>{MATCHUP_COPY.explainer}</Explainer>
-      <Toolbar>
-        <SeasonSelect
-          catalog={catalog}
-          value={season}
-          onChange={(value) => update({ [MATCHUP_PARAMS.season]: value })}
-        />
-        <SegmentedControl
-          label={MATCHUP_COPY.sideLabel}
-          value={side}
-          options={Object.values(MATCHUP_SIDES).map((value) => ({
-            value,
-            label: SIDE_LABELS[value],
-          }))}
-          onChange={(value) => update({ [MATCHUP_PARAMS.side]: value })}
-        />
-      </Toolbar>
-      {error ? (
-        <StatusMessage variant={STATUS_VARIANTS.error}>
-          {getApiErrorMessage(error)}
-        </StatusMessage>
-      ) : (
-        <DataTable
-          caption={MATCHUP_COPY.caption}
-          columns={columns}
-          rows={data?.teams ?? []}
-          getRowKey={(row) => row.team}
-          emptyMessage={MATCHUP_COPY.empty}
-          isFetching={isFetching}
-        />
-      )}
-    </Layout>
+    <SportView
+      explainer={MATCHUP_COPY.explainer}
+      error={error}
+      toolbar={
+        <>
+          <SeasonSelect
+            catalog={catalog}
+            value={season}
+            onChange={(value) => update({ [MATCHUP_PARAMS.season]: value })}
+          />
+          <SegmentedControl
+            label={MATCHUP_COPY.sideLabel}
+            value={side}
+            options={Object.values(MATCHUP_SIDES).map((value) => ({
+              value,
+              label: SIDE_LABELS[value],
+            }))}
+            onChange={(value) => update({ [MATCHUP_PARAMS.side]: value })}
+          />
+        </>
+      }
+    >
+      <DataTable
+        caption={MATCHUP_COPY.caption}
+        columns={columns}
+        rows={data?.teams ?? []}
+        getRowKey={(row) => row.team}
+        emptyMessage={MATCHUP_COPY.empty}
+        isFetching={isFetching}
+      />
+    </SportView>
   );
 };

@@ -19,7 +19,8 @@ import {
   STATUS_TONES,
   TEXT_FORMAT,
 } from './DashboardView.constants';
-import type { DashboardRow, StatusTone, TableRows } from './DashboardView.types';
+import type { StatusTone } from '@/styles';
+import type { DashboardRow, TableRows } from './DashboardView.types';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);

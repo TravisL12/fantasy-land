@@ -15,8 +15,10 @@ import type {
 } from '../../sports.types.js';
 import { pickStats, toNumber } from '../provider.utils.js';
 import {
+  MLB_CLINCH_NOTES,
   MLB_DERIVED_STATS,
   MLB_DIVISIONS,
+  MLB_ELIMINATED_INDICATOR,
   MLB_FINAL_STATE,
   MLB_GROUP_KEYS,
   MLB_PITCHER_POSITION_TYPE,
@@ -257,15 +259,6 @@ export const mapRoster = (
 const standingsNumber = (value: string | undefined) =>
   value === undefined || value === '-' ? null : toNumber(value) ?? null;
 
-/** Upstream's shorthand for what a club has settled, in words. */
-const CLINCH_NOTES: Record<string, string> = {
-  z: 'Clinched best record',
-  y: 'Clinched division',
-  w: 'Clinched wild card',
-  x: 'Clinched playoff berth',
-  e: 'Eliminated from the division race',
-};
-
 export const mapStandings = (
   records: MlbStandingsResponse['records'],
   teams: TeamAbbreviations,
@@ -291,7 +284,7 @@ const mapTeamRecord = (
   teams: TeamAbbreviations,
   index: number,
 ): StandingsEntry => {
-  const eliminated = entry.clinchIndicator === 'e';
+  const eliminated = entry.clinchIndicator === MLB_ELIMINATED_INDICATOR;
 
   return {
     team: teamAbbr(entry.team, teams) ?? String(entry.team?.id ?? ''),
@@ -320,7 +313,7 @@ const mapTeamRecord = (
         ? CLINCH_STATUS.eliminated
         : CLINCH_STATUS.contending,
     clinchNote: entry.clinchIndicator
-      ? CLINCH_NOTES[entry.clinchIndicator] ?? entry.clinchIndicator
+      ? MLB_CLINCH_NOTES[entry.clinchIndicator] ?? entry.clinchIndicator
       : null,
     magicNumber: standingsNumber(entry.magicNumber),
     eliminationNumber: standingsNumber(entry.eliminationNumber),

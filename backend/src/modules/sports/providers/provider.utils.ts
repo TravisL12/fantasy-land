@@ -1,10 +1,35 @@
-import { STAT_FORMATS } from '../sports.constants.js';
+import { CACHE_TTL } from '../../data-cache/data-cache.constants.js';
+import { SPORTS_CACHE_VERSION, STAT_FORMATS } from '../sports.constants.js';
 import type {
+  SportKey,
   StatDefinition,
   StatFormat,
   StatGroup,
   StatValues,
 } from '../sports.types.js';
+
+/**
+ * Every cached payload is keyed `<version>:<sport>:<...>`, so bumping
+ * SPORTS_CACHE_VERSION after a mapper change invalidates a whole sport at
+ * once. Undefined parts drop out rather than becoming the string "undefined" —
+ * an omitted week and a week named "undefined" are not the same key.
+ */
+export const cacheKeyFor =
+  (sport: SportKey) =>
+  (...parts: (string | number | undefined)[]) =>
+    [
+      SPORTS_CACHE_VERSION,
+      sport,
+      ...parts.filter((part) => part !== undefined),
+    ].join(':');
+
+/**
+ * The season's TTL. A finished season's stats cannot change, so only our own
+ * mapping can invalidate them and the version prefix is what does it; the
+ * current season is re-pulled on the live interval.
+ */
+export const seasonTtl = (season: string, currentSeason: string) =>
+  season === currentSeason ? CACHE_TTL.live : CACHE_TTL.archived;
 
 export const defineStat = (
   key: string,

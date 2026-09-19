@@ -10,8 +10,10 @@ export const SCHEDULE_COPY = {
   empty: 'No games in that window.',
   explainer:
     'Fixtures, played and upcoming. A score only appears once a game is final — a live game’s running score is deliberately left out.',
-  starterExplainer:
-    ' Announced starters carry how tough their opponent rates.',
+  starterExplainer: ' Announced starters carry how tough their opponent rates.',
+  /** Away side first, the way a fixture is written. */
+  game: (away: string, home: string) => `${away} @ ${home}`,
+  score: (away: number, home: number) => `${away}–${home}`,
   fromLabel: 'From',
   toLabel: 'To',
   weekLabel: 'Week',
@@ -25,5 +27,4 @@ export const SCHEDULE_COPY = {
     home: 'Home starter',
     score: 'Score',
   },
-  noStarter: 'TBA',
 } as const;

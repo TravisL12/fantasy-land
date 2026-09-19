@@ -6,13 +6,6 @@ export const Layout = styled.div`
   gap: ${({ theme }) => theme.spacing(3)};
 `;
 
-export const Toolbar = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: ${({ theme }) => theme.spacing(3)};
-`;
-
 export const Explainer = styled.p`
   margin: 0;
   max-width: 70ch;
@@ -21,12 +14,9 @@ export const Explainer = styled.p`
   line-height: 1.5;
 `;
 
-export const Starter = styled.div`
+export const Toolbar = styled.div`
   display: flex;
-  flex-direction: column;
-`;
-
-export const Rating = styled.span`
-  color: ${({ theme }) => theme.colors.textMuted};
-  font-size: 0.75rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: ${({ theme }) => theme.spacing(3)};
 `;

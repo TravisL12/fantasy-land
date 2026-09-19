@@ -24,6 +24,18 @@ export const MLB_STANDINGS_TYPE = 'regularSeason';
 /** Games each club plays, the base of a magic number. */
 export const MLB_SEASON_GAMES = 162;
 
+/** Upstream's shorthand for what a club has settled, in words. */
+export const MLB_CLINCH_NOTES: Record<string, string> = {
+  z: 'Clinched best record',
+  y: 'Clinched division',
+  w: 'Clinched wild card',
+  x: 'Clinched playoff berth',
+  e: 'Eliminated from the division race',
+};
+
+/** The one letter that means "out" rather than "in". */
+export const MLB_ELIMINATED_INDICATOR = 'e';
+
 /**
  * Division ids are stable and their names are not worth a second request, so
  * the six are named here. `conference` is the league a division sits in, which

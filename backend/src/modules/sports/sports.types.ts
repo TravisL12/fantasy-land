@@ -281,12 +281,6 @@ export interface PlayerStatus {
 }
 
 /**
- * Optional provider capability: the fixture list, and the meetings between any
- * two teams. This is the narrow half of what LeagueDataProvider used to be —
- * a sport whose upstream publishes a schedule but no team stats implements
- * this alone rather than being forced to fake the rest.
- */
-/**
  * Optional provider capability: the league table. Kept apart from the fixture
  * list because the two come from different places even within one sport —
  * football's schedule is Sleeper's and its table is ESPN's.
@@ -295,6 +289,12 @@ export interface StandingsProvider extends SportProvider {
   getStandings(season: string): Promise<StandingsGroup[]>;
 }
 
+/**
+ * Optional provider capability: the fixture list, and the meetings between any
+ * two teams. This is the narrow half of what LeagueDataProvider used to be —
+ * a sport whose upstream publishes a schedule but no team stats implements
+ * this alone rather than being forced to fake the rest.
+ */
 export interface ScheduleProvider extends SportProvider {
   getSchedule(query: ScheduleQuery): Promise<ScheduledGame[]>;
   getHeadToHead(query: HeadToHeadQuery): Promise<ScheduledGame[]>;

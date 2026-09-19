@@ -11,6 +11,7 @@ import {
   asNumberArray,
   asSport,
   asString,
+  compactMatchup,
 } from '../tools.utils.js';
 import {
   SCHEDULE_LIMIT,
@@ -96,12 +97,7 @@ const projectGame = (
               : {
                   playerId: starter.playerId,
                   name: starter.name,
-                  matchup: starter.matchup
-                    ? {
-                        score: starter.matchup.score,
-                        grade: starter.matchup.grade,
-                      }
-                    : null,
+                  matchup: compactMatchup(starter.matchup),
                 },
           ] as const,
         ]

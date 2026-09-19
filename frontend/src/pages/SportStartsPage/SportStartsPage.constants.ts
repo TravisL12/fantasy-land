@@ -1,10 +1,14 @@
+import type { StartConfidence } from '@/api/sports';
+import type { StatusTone } from '@/styles';
+
 export const STARTS_PARAMS = {
   season: 'season',
   startDate: 'startDate',
   endDate: 'endDate',
 } as const;
 
-export const CONFIDENCE_TONES: Record<string, string> = {
+/** Keyed by the confidence union, so every start is colored by construction. */
+export const CONFIDENCE_TONES: Record<StartConfidence, StatusTone> = {
   confirmed: 'good',
   projected: 'warning',
 };

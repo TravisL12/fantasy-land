@@ -1,4 +1,4 @@
-import { buildPlayerStatsPath } from '@/router/routes.constants';
+import type { Availability } from '@/api/sports';
 
 export const PLAYER_PARAMS = {
   search: 'q',
@@ -10,7 +10,8 @@ export const PLAYER_PARAMS = {
 export const PLAYERS_PAGE_SIZE = 50;
 export const SEARCH_DEBOUNCE_MS = 300;
 
-export const AVAILABILITY_LABELS: Record<string, string> = {
+/** The NFL's own wording for the same normalized statuses the API returns. */
+export const AVAILABILITY_LABELS: Record<Availability, string> = {
   active: 'Active',
   injured: 'Injured',
   minors: 'Practice squad',
@@ -35,5 +36,3 @@ export const PLAYERS_COPY = {
     availability: 'Availability',
   },
 } as const;
-
-export const playerPath = buildPlayerStatsPath;

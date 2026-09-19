@@ -7,11 +7,11 @@ import {
 import { DataTable, type DataTableColumn } from '@/components/DataTable';
 import { SeasonSelect } from '@/components/SeasonSelect';
 import { Select } from '@/components/Select';
-import { STATUS_VARIANTS, StatusMessage } from '@/components/StatusMessage';
+import { SportView } from '@/components/SportView';
 import { TextField } from '@/components/TextField';
 import { useDebouncedCallback, useSearchParamsState } from '@/hooks';
 import { useSportContext } from '@/pages/SportPage';
-import { getApiErrorMessage } from '@/utils';
+import { EMPTY_STAT } from '@/utils';
 import {
   AVAILABILITY_COPY,
   AVAILABILITY_LABELS,
@@ -19,30 +19,30 @@ import {
   AVAILABILITY_TONES,
   SEARCH_DEBOUNCE_MS,
 } from './SportAvailabilityPage.constants';
-import {
-  Chip,
-  Explainer,
-  Layout,
-  Toolbar,
-} from './SportAvailabilityPage.styles';
+import { Chip } from './SportAvailabilityPage.styles';
 
 const { columns: COLUMNS } = AVAILABILITY_COPY;
 
 const columns: DataTableColumn<PlayerStatus>[] = [
-  { key: 'name', header: COLUMNS.player, sticky: true, render: (row) => row.name },
-  { key: 'team', header: COLUMNS.team, render: (row) => row.team ?? '—' },
+  {
+    key: 'name',
+    header: COLUMNS.player,
+    sticky: true,
+    render: (row) => row.name,
+  },
+  { key: 'team', header: COLUMNS.team, render: (row) => row.team ?? EMPTY_STAT },
   {
     key: 'position',
     header: COLUMNS.position,
-    render: (row) => row.position ?? '—',
+    render: (row) => row.position ?? EMPTY_STAT,
   },
   { key: 'status', header: COLUMNS.status, render: (row) => row.status },
   {
     key: 'availability',
     header: COLUMNS.availability,
     render: (row) => (
-      <Chip $tone={AVAILABILITY_TONES[row.availability] ?? 'neutral'}>
-        {AVAILABILITY_LABELS[row.availability] ?? row.availability}
+      <Chip $tone={AVAILABILITY_TONES[row.availability]}>
+        {AVAILABILITY_LABELS[row.availability]}
       </Chip>
     ),
   },
@@ -71,52 +71,50 @@ export const SportAvailabilityPage = () => {
   });
 
   return (
-    <Layout>
-      <Explainer>{AVAILABILITY_COPY.explainer}</Explainer>
-      <Toolbar>
-        <SeasonSelect
-          catalog={catalog}
-          value={season}
-          onChange={(value) => update({ [AVAILABILITY_PARAMS.season]: value })}
-        />
-        <Select
-          label={AVAILABILITY_COPY.statusLabel}
-          value={availability}
-          options={[
-            { value: '', label: AVAILABILITY_COPY.all },
-            ...Object.entries(AVAILABILITY_LABELS).map(([value, label]) => ({
-              value,
-              label,
-            })),
-          ]}
-          onChange={(value) =>
-            update({ [AVAILABILITY_PARAMS.availability]: value })
-          }
-        />
-        <TextField
-          label={AVAILABILITY_COPY.searchLabel}
-          placeholder={AVAILABILITY_COPY.searchPlaceholder}
-          value={searchInput}
-          onChange={(event) => {
-            setSearchInput(event.target.value);
-            commitSearch(event.target.value);
-          }}
-        />
-      </Toolbar>
-      {error ? (
-        <StatusMessage variant={STATUS_VARIANTS.error}>
-          {getApiErrorMessage(error)}
-        </StatusMessage>
-      ) : (
-        <DataTable
-          caption={AVAILABILITY_COPY.caption}
-          columns={columns}
-          rows={data?.players ?? []}
-          getRowKey={(row) => row.playerId}
-          emptyMessage={AVAILABILITY_COPY.empty}
-          isFetching={isFetching}
-        />
-      )}
-    </Layout>
+    <SportView
+      explainer={AVAILABILITY_COPY.explainer}
+      error={error}
+      toolbar={
+        <>
+          <SeasonSelect
+            catalog={catalog}
+            value={season}
+            onChange={(value) => update({ [AVAILABILITY_PARAMS.season]: value })}
+          />
+          <Select
+            label={AVAILABILITY_COPY.statusLabel}
+            value={availability}
+            options={[
+              { value: '', label: AVAILABILITY_COPY.all },
+              ...Object.entries(AVAILABILITY_LABELS).map(([value, label]) => ({
+                value,
+                label,
+              })),
+            ]}
+            onChange={(value) =>
+              update({ [AVAILABILITY_PARAMS.availability]: value })
+            }
+          />
+          <TextField
+            label={AVAILABILITY_COPY.searchLabel}
+            placeholder={AVAILABILITY_COPY.searchPlaceholder}
+            value={searchInput}
+            onChange={(event) => {
+              setSearchInput(event.target.value);
+              commitSearch(event.target.value);
+            }}
+          />
+        </>
+      }
+    >
+      <DataTable
+        caption={AVAILABILITY_COPY.caption}
+        columns={columns}
+        rows={data?.players ?? []}
+        getRowKey={(row) => row.playerId}
+        emptyMessage={AVAILABILITY_COPY.empty}
+        isFetching={isFetching}
+      />
+    </SportView>
   );
 };

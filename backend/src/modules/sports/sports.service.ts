@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { mean, round } from '../../common/math/number.js';
 import type { PlayerStatsQueryDto } from './dto/player-stats-query.dto.js';
 import type { StatsQueryDto } from './dto/stats-query.dto.js';
 import type {
@@ -11,17 +12,24 @@ import type {
   StatsResponseDto,
 } from './dto/stats-response.dto.js';
 import { expectedPoints } from './analysis/expected-points.js';
-import { analyzeForm } from './analysis/form.js';
 import { playerHeadToHead, teamSeries } from './analysis/head-to-head.js';
-import { clinchNumbers } from './analysis/standings.js';
+import { clinchNumbers, seasonLength } from './analysis/standings.js';
 import {
   recentResults,
+  selectPreviewGame,
   sumTeamStats,
   teamLeaders,
   teamRecord,
 } from './analysis/preview.js';
 import { rateMatchups } from './analysis/matchup.js';
-import { projectStarts, restPattern } from './analysis/starts.js';
+import {
+  confirmedStarts,
+  projectStarts,
+  restPattern,
+  teamSchedules,
+  type ConfirmedStarts,
+  type TeamSchedules,
+} from './analysis/starts.js';
 import { datesUnusable, sliceGames } from './analysis/window.js';
 import {
   calculateFantasyPoints,
@@ -34,8 +42,6 @@ import {
   DATA_KINDS,
   DIRECTORY_QUERY_DEFAULTS,
   EXPECTED_POINTS_DEFAULTS,
-  EXPECTED_SORT_KEYS,
-  FORM_DEFAULTS,
   MATCHUP_SIDES,
   PREVIEW_DEFAULTS,
   PREVIEW_STATS_SOURCES,
@@ -56,41 +62,39 @@ import type {
   SportCatalogView,
   ExpectedPointsLine,
   ExpectedPointsModel,
-  FormReport,
   GamePreview,
   GameWindow,
   MatchupRating,
   MatchupSide,
   PlayerHeadToHead,
-  PlayerRef,
   PlayerSplit,
   PreviewTeam,
   ProbableStarter,
-  ProjectedStart,
-  ScheduledGame,
   ScoredStatLine,
   SortOrder,
-  SportCatalog,
   SportKey,
   SportProvider,
   StartsReport,
-  SeriesGame,
-  StandingsGroup,
   StandingsReport,
-  TeamSeries,
   TeamStrength,
 } from './sports.types.js';
 import {
   assertRange,
-  matchKey,
+  capabilitiesOf,
+  compareExpected,
+  compareRows,
   matchPlayers,
+  narrowStandings,
   providesLeagueData,
   providesSchedule,
   providesStandings,
   providesPlayerDirectory,
   providesOpportunityStats,
   resolveDateRange,
-  toIsoDate,
+  resolveExpectedSort,
+  resolveGroup,
+  resolveScoring,
+  resolveTeam,
 } from './sports.utils.js';
 
 /** A date window, already validated by resolveDateRange. */
@@ -139,13 +143,7 @@ export class SportsService {
   private async describe(provider: SportProvider): Promise<SportCatalogView> {
     return {
       ...(await provider.getCatalog()),
-      capabilities: {
-        schedule: providesSchedule(provider),
-        standings: providesStandings(provider),
-        leagueData: providesLeagueData(provider),
-        expectedPoints: providesOpportunityStats(provider),
-        playerDirectory: providesPlayerDirectory(provider),
-      },
+      capabilities: capabilitiesOf(provider),
     };
   }
 
@@ -474,43 +472,6 @@ export class SportsService {
   }
 
   /**
-   * Every announced starter in the window as a flat, matchup-rated list —
-   * the "who should I stream tomorrow" view.
-   */
-  async getProbableStarters(
-    sport: SportKey,
-    query: DateRangeQuery & { team?: string },
-  ) {
-    const { games, range, season } = await this.dateSchedule(sport, query);
-    const ratings = await this.matchupRatings(
-      sport,
-      season,
-      MATCHUP_SIDES.pitching,
-    );
-    const team = query.team?.toUpperCase();
-
-    const starters = games
-      .flatMap((game) =>
-        [game.probables.away, game.probables.home]
-          .filter((starter): starter is ProbableStarter => starter !== null)
-          .map((starter) => ({
-            ...starter,
-            date: game.date,
-            gameId: game.gameId,
-            matchup: ratings.get(starter.opponent) ?? null,
-          })),
-      )
-      .filter((starter) => !team || starter.team === team)
-      .sort(
-        (a, b) =>
-          a.date.localeCompare(b.date) ||
-          (b.matchup?.score ?? 0) - (a.matchup?.score ?? 0),
-      );
-
-    return { sport, season, ...range, starters };
-  }
-
-  /**
    * Starts per pitcher across the window — the two-start question. Announced
    * probables are exact; anything past upstream's ~4-day horizon is projected
    * from the pitcher's rest pattern, so `confidence` is part of every start.
@@ -536,29 +497,7 @@ export class SportsService {
       MATCHUP_SIDES.pitching,
     );
     const teamGames = teamSchedules(games);
-
-    const confirmed = new Map<string, { player: PlayerRef; starts: ProjectedStart[] }>();
-    for (const game of games) {
-      for (const starter of [game.probables.away, game.probables.home]) {
-        if (!starter) continue;
-        const entry = confirmed.get(starter.playerId) ?? {
-          player: {
-            id: starter.playerId,
-            name: starter.name,
-            team: starter.team,
-            position: null,
-          },
-          starts: [],
-        };
-        entry.starts.push({
-          date: game.date,
-          opponent: starter.opponent,
-          isHome: starter.isHome,
-          confidence: START_CONFIDENCE.confirmed,
-        });
-        confirmed.set(starter.playerId, entry);
-      }
-    }
+    const confirmed = confirmedStarts(games);
 
     const requested = query.playerIds?.slice(
       0,
@@ -645,43 +584,6 @@ export class SportsService {
           (!availability || availability.has(player.availability)) &&
           (!team || player.team === team) &&
           (!search || player.name.toLowerCase().includes(search)),
-      ),
-    };
-  }
-
-  /** Recent games measured against the player's own season baseline. */
-  async getPlayerForm(
-    sport: SportKey,
-    playerId: string,
-    query: { season?: string; group?: string; scoring?: string; window?: number },
-  ): Promise<{
-    sport: SportKey;
-    season: string;
-    scoring: string;
-    player: PlayerRef;
-    form: FormReport;
-  }> {
-    const stats = await this.getPlayerStats(
-      sport,
-      playerId,
-      {
-        season: query.season,
-        group: query.group,
-        scoring: query.scoring,
-      } as PlayerStatsQueryDto,
-    );
-    const catalog = await this.getCatalog(sport);
-    const group = resolveGroup(catalog, stats.group);
-
-    return {
-      sport: stats.sport,
-      season: stats.season,
-      scoring: stats.scoring,
-      player: stats.player,
-      form: analyzeForm(
-        stats.entries,
-        query.window ?? FORM_DEFAULTS.window,
-        group.stats,
       ),
     };
   }
@@ -790,8 +692,8 @@ export class SportsService {
     sport: SportKey;
     season: string;
     playerId: string;
-    confirmed?: { player: PlayerRef; starts: ProjectedStart[] };
-    teamGames: Map<string, Map<string, { opponent: string; isHome: boolean }>>;
+    confirmed?: ConfirmedStarts;
+    teamGames: TeamSchedules;
     ratings: Map<string, MatchupRating>;
     endDate: string;
     measureRest: boolean;
@@ -833,20 +735,10 @@ export class SportsService {
       confirmedStarts: starts.filter(
         ({ confidence }) => confidence === START_CONFIDENCE.confirmed,
       ).length,
-      matchupScore: scores.length
-        ? Math.round(
-            (scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10,
-          ) / 10
-        : null,
+      matchupScore: scores.length ? round(mean(scores), 1) : null,
     };
   }
 
-  /**
-   * Resolves the window a fixture question is asking about. A sport with weeks
-   * can be asked for them directly, because "week 3" is how football is talked
-   * about and turning it into dates first would be the caller's guesswork.
-   * Everything else falls back to the date range, capped as always.
-   */
   /**
    * The league table, division by division. Where upstream publishes the
    * clinch and elimination numbers they are passed through untouched; where it
@@ -1040,6 +932,12 @@ export class SportsService {
     };
   }
 
+  /**
+   * Resolves the window a fixture question is asking about. A sport with weeks
+   * can be asked for them directly, because "week 3" is how football is talked
+   * about and turning it into dates first would be the caller's guesswork.
+   * Everything else falls back to the date range, capped as always.
+   */
   private async schedule(sport: SportKey, query: ScheduleWindowQuery) {
     const provider = this.scheduleProvider(sport);
     const catalog = await provider.getCatalog();
@@ -1117,213 +1015,7 @@ export class SportsService {
   }
 }
 
-/**
- * An expected-points board is only sortable by its own computed columns, and a
- * name that is not one of them is rejected with the list — the same rule the
- * leaderboard follows, and for the same reason: a board sorted by something
- * other than what was asked for still reads as a real ranking.
- */
-const resolveExpectedSort = (sort: string | undefined) => {
-  const keys = Object.values(EXPECTED_SORT_KEYS);
-  if (!sort) return EXPECTED_SORT_KEYS.expectedPointsPerGame;
-
-  const match = matchKey(keys, sort);
-  if (!match) {
-    throw new BadRequestException(SPORTS_MESSAGES.unknownExpectedSort(sort, keys));
-  }
-  return match;
-};
-
-/** Ties fall back to name, and a null efficiency sinks, as elsewhere. */
-const compareExpected =
-  (key: string, order: SortOrder) =>
-  (a: ExpectedPointsLine, b: ExpectedPointsLine) => {
-    const av = a[key as keyof ExpectedPointsLine];
-    const bv = b[key as keyof ExpectedPointsLine];
-    if (typeof av !== 'number' || typeof bv !== 'number') {
-      if (typeof av === typeof bv) return a.player.name.localeCompare(b.player.name);
-      return typeof av === 'number' ? -1 : 1;
-    }
-    const direction = order === SORT_ORDERS.asc ? 1 : -1;
-    return (av - bv) * direction || a.player.name.localeCompare(b.player.name);
-  };
-
 const withMatchup = (
   starter: ProbableStarter | null,
   ratings: Map<string, MatchupRating>,
 ) => (starter ? { ...starter, matchup: ratings.get(starter.opponent) ?? null } : null);
-
-/** Date → opponent for each team, so a projected start can land on a real game. */
-const teamSchedules = (games: ScheduledGame[]) => {
-  const byTeam = new Map<
-    string,
-    Map<string, { opponent: string; isHome: boolean }>
-  >();
-  for (const game of games) {
-    for (const [team, opponent, isHome] of [
-      [game.home, game.away, true],
-      [game.away, game.home, false],
-    ] as const) {
-      const dates = byTeam.get(team) ?? new Map();
-      dates.set(game.date, { opponent, isHome });
-      byTeam.set(team, dates);
-    }
-  }
-  return byTeam;
-};
-
-/** Group and preset keys match loosely, so "Pitching" still finds "pitching". */
-const resolveGroup = (catalog: SportCatalog, key?: string) => {
-  const match = key && matchKey(catalog.groups.map((g) => g.key), key);
-  const group = key
-    ? catalog.groups.find((g) => g.key === match)
-    : catalog.groups[0];
-  if (!group)
-    throw new BadRequestException(SPORTS_MESSAGES.unknownGroup(key ?? ''));
-  return group;
-};
-
-/** Abbreviations are case-insensitive, and a wrong one lists the valid ones. */
-const resolveTeam = (team: string, known: string[]) => {
-  const match = known.find(
-    (candidate) => candidate.toUpperCase() === team.trim().toUpperCase(),
-  );
-  if (!match) {
-    throw new BadRequestException(SPORTS_MESSAGES.unknownTeam(team, known));
-  }
-  return match;
-};
-
-const resolveScoring = (catalog: SportCatalog, key?: string) => {
-  if (!key) return catalog.scoringPresets[0];
-
-  // Label as well as key, so "half ppr" and "Standard points" both land.
-  const match = matchKey(
-    catalog.scoringPresets.flatMap((preset) => [preset.key, preset.label]),
-    key,
-  );
-  const preset = catalog.scoringPresets.find(
-    ({ key: presetKey, label }) => presetKey === match || label === match,
-  );
-  if (!preset) {
-    throw new BadRequestException(
-      SPORTS_MESSAGES.unknownScoring(
-        key,
-        catalog.scoringPresets.map((p) => p.key),
-      ),
-    );
-  }
-  return preset;
-};
-
-const sortValue = (
-  row: ScoredStatLine,
-  key: string,
-): number | string | undefined => {
-  switch (key) {
-    case COMPUTED_SORT_KEYS.name:
-      return row.player.name;
-    case COMPUTED_SORT_KEYS.fantasyPoints:
-    case COMPUTED_SORT_KEYS.fantasyPointsPerGame:
-    case COMPUTED_SORT_KEYS.gamesPlayed:
-      return row[key];
-    default:
-      return row.stats[key];
-  }
-};
-
-/** Missing values always sink to the bottom; ties fall back to name. */
-const compareRows =
-  (key: string, order: SortOrder) => (a: ScoredStatLine, b: ScoredStatLine) => {
-    const av = sortValue(a, key);
-    const bv = sortValue(b, key);
-    if (av === undefined || bv === undefined) {
-      if (av === bv) return a.player.name.localeCompare(b.player.name);
-      return av === undefined ? 1 : -1;
-    }
-    const direction = order === SORT_ORDERS.asc ? 1 : -1;
-    const diff =
-      typeof av === 'string' || typeof bv === 'string'
-        ? String(av).localeCompare(String(bv))
-        : av - bv;
-    return diff * direction || a.player.name.localeCompare(b.player.name);
-  };
-
-/**
- * The game a preview is about: the one named, else the next one still to come,
- * else the last meeting there was. "Still to come" is measured against today
- * and not merely against having a score, because a postponed game keeps no
- * score for ever and would otherwise be previewed as the next meeting months
- * after it was called off. A season whose fixtures are all behind them is a
- * real state of affairs, so the last one is reported rather than nothing.
- */
-const selectPreviewGame = (
-  games: SeriesGame[],
-  gameId?: string,
-): { game: SeriesGame | null; isUpcoming: boolean } => {
-  if (gameId) {
-    const named = games.find((game) => game.gameId === gameId) ?? null;
-    return { game: named, isUpcoming: named?.score === null };
-  }
-
-  const ordered = [...games].sort((a, b) => a.date.localeCompare(b.date));
-  const today = toIsoDate(new Date());
-  const next = ordered.find(
-    ({ score, date }) => score === null && date >= today,
-  );
-
-  return next
-    ? { game: next, isUpcoming: true }
-    : { game: ordered[ordered.length - 1] ?? null, isUpcoming: false };
-};
-
-/**
- * How many games each club plays, taken from the table itself rather than
- * declared per sport: a club's played-plus-remaining is the season length, and
- * the fullest row is the one to trust when some club has a game in hand.
- */
-const seasonLength = (groups: StandingsGroup[]) =>
-  Math.max(
-    0,
-    ...groups.flatMap(({ teams }) =>
-      teams.map(
-        ({ gamesPlayed, gamesRemaining }) => gamesPlayed + (gamesRemaining ?? 0),
-      ),
-    ),
-  );
-
-/**
- * A table narrowed to one division or one conference. Matching both means
- * "AFC" and "AFC East" are each a thing you can ask for, and an unknown name
- * comes back with the list rather than an empty table that reads as "nobody
- * is in that division".
- */
-const narrowStandings = (groups: StandingsGroup[], group?: string) => {
-  if (!group) return groups;
-
-  // A division answers to its key and to its printed name, because "ALE" is
-  // how upstream spells it and "AL East" is how everyone else does.
-  const names = [
-    ...new Set(
-      groups.flatMap(({ key, name, conference }) => [
-        key,
-        name,
-        ...(conference ? [conference] : []),
-      ]),
-    ),
-  ].filter(Boolean);
-  const match = matchKey(names, group);
-  const narrowed = match
-    ? groups.filter(
-        ({ key, name, conference }) =>
-          key === match || name === match || conference === match,
-      )
-    : [];
-
-  if (!narrowed.length) {
-    throw new BadRequestException(
-      SPORTS_MESSAGES.unknownStandingsGroup(group, names),
-    );
-  }
-  return narrowed;
-};

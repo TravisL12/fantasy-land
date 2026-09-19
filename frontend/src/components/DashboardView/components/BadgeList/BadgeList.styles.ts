@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import type { StatusTone } from '../../DashboardView.types';
+import type { StatusTone } from '@/styles';
 
 export const List = styled.ul`
   display: flex;

@@ -137,13 +137,13 @@ describe('SportsService league data', () => {
   it('rates each announced starter against the lineup they face', async () => {
     const service = new SportsService([buildProvider()]);
 
-    const { starters } = await service.getProbableStarters('mlb', range);
+    const { games } = await service.getSchedule('mlb', range);
+    const starter = games[0].probables.home;
 
-    expect(starters).toHaveLength(1);
-    expect(starters[0]).toMatchObject({ name: 'Zack Wheeler', date: '2026-09-16' });
+    expect(starter).toMatchObject({ name: 'Zack Wheeler' });
     // BOS scores the fewest runs, so facing them is the softest matchup here.
-    expect(starters[0].matchup?.grade).toBe('good');
-    expect(starters[0].matchup?.metrics).toEqual([
+    expect(starter?.matchup?.grade).toBe('good');
+    expect(starter?.matchup?.metrics).toEqual([
       { key: 'runs', label: 'Runs', value: 500, rank: 75 },
     ]);
   });
@@ -217,22 +217,11 @@ describe('SportsService league data', () => {
     expect(players).toHaveLength(3);
   });
 
-  it('compares a recent split with the season', async () => {
-    const service = new SportsService([buildProvider()]);
-
-    const { form } = await service.getPlayerForm('mlb', '1', { window: 1 });
-
-    expect(form.recent.average).toBe(4);
-    expect(form.season.average).toBe(6);
-    expect(form.trend).toBe('cold');
-    expect(form.recentTotals).toEqual({ gamesStarted: 1, strikeOuts: 4 });
-  });
-
   it('rejects a window longer than the cap', async () => {
     const service = new SportsService([buildProvider()]);
 
     await expect(
-      service.getProbableStarters('mlb', {
+      service.getStarts('mlb', {
         startDate: '2026-09-01',
         endDate: '2026-10-30',
       }),
@@ -244,7 +233,7 @@ describe('SportsService league data', () => {
     const service = new SportsService([provider]);
 
     await expect(
-      service.getProbableStarters('mlb', { startDate: 'tomorrow' }),
+      service.getStarts('mlb', { startDate: 'tomorrow' }),
     ).rejects.toThrow(BadRequestException);
     expect(provider.getSchedule).not.toHaveBeenCalled();
   });
@@ -429,7 +418,7 @@ describe('SportsService league data', () => {
     await expect(service.getSchedule('nfl', range)).resolves.toMatchObject({
       games: [],
     });
-    await expect(service.getProbableStarters('nfl', range)).rejects.toThrow(
+    await expect(service.getStarts('nfl', range)).rejects.toThrow(
       /only wired up for mlb/,
     );
   });

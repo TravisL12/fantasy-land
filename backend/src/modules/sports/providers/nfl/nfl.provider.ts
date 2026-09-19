@@ -5,11 +5,7 @@ import {
 } from '../../../../common/http/fetch-json.js';
 import { CACHE_TTL } from '../../../data-cache/data-cache.constants.js';
 import { DataCacheService } from '../../../data-cache/data-cache.service.js';
-import {
-  DATA_KINDS,
-  SPORT_KEYS,
-  SPORTS_CACHE_VERSION,
-} from '../../sports.constants.js';
+import { DATA_KINDS, SPORT_KEYS } from '../../sports.constants.js';
 import type {
   DirectoryPlayer,
   GameLog,
@@ -44,7 +40,12 @@ import {
   SLEEPER_STATE_URL,
   sleeperScheduleUrl,
 } from './nfl.constants.js';
-import { findGroup, seasonRange } from '../provider.utils.js';
+import {
+  cacheKeyFor,
+  findGroup,
+  seasonRange,
+  seasonTtl,
+} from '../provider.utils.js';
 import {
   aggregateStatLines,
   groupForPosition,
@@ -67,12 +68,7 @@ import type {
   SleeperWeeklyLog,
 } from './nfl.types.js';
 
-const cacheKey = (...parts: (string | number | undefined)[]) =>
-  [
-    SPORTS_CACHE_VERSION,
-    SPORT_KEYS.nfl,
-    ...parts.filter((p) => p !== undefined),
-  ].join(':');
+const cacheKey = cacheKeyFor(SPORT_KEYS.nfl);
 
 @Injectable()
 export class NflProvider
@@ -357,8 +353,8 @@ export class NflProvider
   }
 
   private async ttlForSeason(season: string) {
-    const state = await this.getState();
-    return season === state.season ? CACHE_TTL.live : CACHE_TTL.archived;
+    const { season: current } = await this.getState();
+    return seasonTtl(season, current);
   }
 }
 
