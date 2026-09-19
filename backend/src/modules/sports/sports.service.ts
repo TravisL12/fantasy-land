@@ -13,6 +13,12 @@ import type {
 import { expectedPoints } from './analysis/expected-points.js';
 import { analyzeForm } from './analysis/form.js';
 import { playerHeadToHead, teamSeries } from './analysis/head-to-head.js';
+import {
+  recentResults,
+  sumTeamStats,
+  teamLeaders,
+  teamRecord,
+} from './analysis/preview.js';
 import { rateMatchups } from './analysis/matchup.js';
 import { projectStarts, restPattern } from './analysis/starts.js';
 import { datesUnusable, sliceGames } from './analysis/window.js';
@@ -30,6 +36,8 @@ import {
   EXPECTED_SORT_KEYS,
   FORM_DEFAULTS,
   MATCHUP_SIDES,
+  PREVIEW_DEFAULTS,
+  PREVIEW_STATS_SOURCES,
   SORT_ORDERS,
   SPORT_PROVIDERS,
   SPORTS_MESSAGES,
@@ -47,12 +55,14 @@ import type {
   ExpectedPointsLine,
   ExpectedPointsModel,
   FormReport,
+  GamePreview,
   GameWindow,
   MatchupRating,
   MatchupSide,
   PlayerHeadToHead,
   PlayerRef,
   PlayerSplit,
+  PreviewTeam,
   ProbableStarter,
   ProjectedStart,
   ScheduledGame,
@@ -62,6 +72,7 @@ import type {
   SportKey,
   SportProvider,
   StartsReport,
+  SeriesGame,
   TeamSeries,
   TeamStrength,
 } from './sports.types.js';
@@ -70,9 +81,11 @@ import {
   matchKey,
   matchPlayers,
   providesLeagueData,
+  providesSchedule,
   providesPlayerDirectory,
   providesOpportunityStats,
   resolveDateRange,
+  toIsoDate,
 } from './sports.utils.js';
 
 /** A date window, already validated by resolveDateRange. */
@@ -81,6 +94,18 @@ export interface DateRangeQuery {
   startDate?: string;
   endDate?: string;
   days?: number;
+}
+
+/** A fixture window: a date range, or the weeks a sport that has them uses. */
+interface ScheduleWindowQuery extends DateRangeQuery {
+  weeks?: number[];
+}
+
+/** The window a fixture query resolved to, echoed back with the games. */
+interface ScheduleWindow {
+  startDate?: string;
+  endDate?: string;
+  weeks?: number[];
 }
 
 @Injectable()
@@ -110,6 +135,7 @@ export class SportsService {
     return {
       ...(await provider.getCatalog()),
       capabilities: {
+        schedule: providesSchedule(provider),
         leagueData: providesLeagueData(provider),
         expectedPoints: providesOpportunityStats(provider),
         playerDirectory: providesPlayerDirectory(provider),
@@ -413,8 +439,13 @@ export class SportsService {
     };
   }
 
-  /** Games in a window, with each announced starter's matchup rated. */
-  async getSchedule(sport: SportKey, query: DateRangeQuery) {
+  /**
+   * Games in a window, with each announced starter's matchup rated where the
+   * sport rates matchups. A fixture list is the narrower capability, so a
+   * sport with a schedule and no team stats answers here rather than being
+   * turned away for the ratings it was never going to carry.
+   */
+  async getSchedule(sport: SportKey, query: ScheduleWindowQuery) {
     const { games, range, season } = await this.schedule(sport, query);
     const ratings = await this.matchupRatings(
       sport,
@@ -444,7 +475,7 @@ export class SportsService {
     sport: SportKey,
     query: DateRangeQuery & { team?: string },
   ) {
-    const { games, range, season } = await this.schedule(sport, query);
+    const { games, range, season } = await this.dateSchedule(sport, query);
     const ratings = await this.matchupRatings(
       sport,
       season,
@@ -492,7 +523,7 @@ export class SportsService {
     coverageNote: string;
     pitchers: StartsReport[];
   }> {
-    const { games, range, season } = await this.schedule(sport, query);
+    const { games, range, season } = await this.dateSchedule(sport, query);
     const ratings = await this.matchupRatings(
       sport,
       season,
@@ -740,83 +771,6 @@ export class SportsService {
     };
   }
 
-  /**
-   * Two teams over a season or part of one: the games they played each other,
-   * and how each side produced across the same interval. Team stats are
-   * measured over the window too, so a "since August" comparison is not
-   * silently answered with season-to-date numbers.
-   */
-  async getTeamHeadToHead(
-    sport: SportKey,
-    query: {
-      teamA: string;
-      teamB: string;
-      season?: string;
-      startDate?: string;
-      endDate?: string;
-    },
-  ): Promise<{
-    sport: SportKey;
-    season: string;
-    startDate: string | undefined;
-    endDate: string | undefined;
-    teams: unknown[];
-    series: TeamSeries;
-    note?: string;
-  }> {
-    const provider = this.leagueProvider(sport);
-    const season = query.season ?? (await provider.getCatalog()).defaultSeason;
-    const range = assertRange(query.startDate, query.endDate);
-    // Both ends are needed to measure an interval; one alone means the season.
-    const interval: DateRange | undefined =
-      range.startDate && range.endDate
-        ? { startDate: range.startDate, endDate: range.endDate }
-        : undefined;
-
-    const strengths = await provider.getTeamStrength(season, interval);
-    const known = strengths.map(({ team }) => team).sort();
-    const teams = [query.teamA, query.teamB].map((team) =>
-      resolveTeam(team, known),
-    ) as [string, string];
-    if (teams[0] === teams[1]) {
-      throw new BadRequestException(SPORTS_MESSAGES.sameTeam);
-    }
-
-    const ratings = Object.fromEntries(
-      Object.values(MATCHUP_SIDES).map((side) => [
-        side,
-        rateMatchups(strengths, provider.matchupMetrics[side]),
-      ]),
-    ) as Record<MatchupSide, Map<string, MatchupRating>>;
-
-    const games = await provider.getHeadToHead({ season, teams, ...range });
-    const series = teamSeries(games, teams);
-
-    return {
-      sport,
-      season,
-      ...range,
-      teams: teams.map((team) => {
-        const strength = strengths.find((entry) => entry.team === team);
-        return {
-          team,
-          gamesPlayed: strength?.gamesPlayed ?? 0,
-          hitting: strength?.hitting ?? {},
-          pitching: strength?.pitching ?? {},
-          /** How good a matchup this team is *to face*, on each side. */
-          asOpponent: Object.fromEntries(
-            Object.values(MATCHUP_SIDES).map((side) => [
-              side,
-              ratings[side].get(team) ?? null,
-            ]),
-          ),
-        };
-      }),
-      series,
-      ...(series.played === 0 && { note: SPORTS_MESSAGES.neverMet }),
-    };
-  }
-
   private async startsForPitcher({
     sport,
     season,
@@ -881,7 +835,196 @@ export class SportsService {
     };
   }
 
-  private async schedule(sport: SportKey, query: DateRangeQuery) {
+  /**
+   * Resolves the window a fixture question is asking about. A sport with weeks
+   * can be asked for them directly, because "week 3" is how football is talked
+   * about and turning it into dates first would be the caller's guesswork.
+   * Everything else falls back to the date range, capped as always.
+   */
+  /**
+   * Two teams set against one game: the fixture, both sides' recent results
+   * and production, their leading scorers and the series between them. It is
+   * built on the schedule capability alone, so it answers for any sport with
+   * a fixture list, and quietly gains the pieces — matchup grades, a probable
+   * starter — that only a sport with team stats can supply.
+   */
+  async getGamePreview(
+    sport: SportKey,
+    query: {
+      teamA: string;
+      teamB: string;
+      season?: string;
+      gameId?: string;
+      startDate?: string;
+      endDate?: string;
+      group?: string;
+      scoring?: string;
+      leaders?: number;
+      recentGames?: number;
+    },
+  ): Promise<GamePreview> {
+    const provider = this.scheduleProvider(sport);
+    const { group, scoring, season, rows } = await this.scoreStatLines(sport, {
+      ...query,
+      kind: DATA_KINDS.stats,
+    });
+
+    const notes: string[] = [];
+    const range = assertRange(query.startDate, query.endDate);
+    // Both ends are needed to measure an interval; one alone only narrows the
+    // fixture list, as it does for a head-to-head.
+    const interval: DateRange | undefined =
+      range.startDate && range.endDate
+        ? { startDate: range.startDate, endDate: range.endDate }
+        : undefined;
+
+    // A sport with team stats supplies the club line and the matchup grades;
+    // one without falls back to its players, and says so.
+    const league = providesLeagueData(provider) ? provider : null;
+    const strengths = league
+      ? await league.getTeamStrength(season, interval)
+      : null;
+    if (!league) {
+      notes.push(SPORTS_MESSAGES.previewFromPlayers(group.label));
+    }
+
+    // Club abbreviations come from the team line where there is one, and from
+    // the stat lines we already hold otherwise — either way a preview costs no
+    // extra request just to learn how this sport spells its teams.
+    const known = (
+      strengths?.map(({ team }) => team) ??
+      rows.flatMap(({ player }) => (player.team ? [player.team] : []))
+    )
+      .filter((team, index, all) => all.indexOf(team) === index)
+      .sort();
+    const teams = [query.teamA, query.teamB].map((team) =>
+      resolveTeam(team, known),
+    ) as [string, string];
+    if (teams[0] === teams[1]) {
+      throw new BadRequestException(SPORTS_MESSAGES.sameTeam);
+    }
+
+    const meetings = await provider.getHeadToHead({ season, teams, ...range });
+    const series = teamSeries(meetings, teams);
+    const { game, isUpcoming } = selectPreviewGame(series.games, query.gameId);
+    // A preview of a game already played is still a preview of something, but
+    // the reader has to be told it is looking backwards.
+    if (!query.gameId && !isUpcoming) {
+      notes.push(SPORTS_MESSAGES.noGamesScheduled(teams));
+    }
+    if (!game && query.gameId) {
+      notes.push(SPORTS_MESSAGES.unknownGame(query.gameId));
+    }
+    const ratings =
+      league && strengths
+        ? (Object.fromEntries(
+            Object.values(MATCHUP_SIDES).map((side) => [
+              side,
+              rateMatchups(strengths, league.matchupMetrics[side]),
+            ]),
+          ) as Record<MatchupSide, Map<string, MatchupRating>>)
+        : null;
+
+    const leaderLimit = Math.min(
+      query.leaders ?? PREVIEW_DEFAULTS.leaders,
+      PREVIEW_DEFAULTS.maxLeaders,
+    );
+    const gameLimit = Math.min(
+      query.recentGames ?? PREVIEW_DEFAULTS.recentGames,
+      PREVIEW_DEFAULTS.maxRecentGames,
+    );
+
+    const sides = await Promise.all(
+      teams.map(async (team): Promise<PreviewTeam> => {
+        const played = await provider.getTeamGames({ season, team, ...range });
+        const record = teamRecord(played, team);
+        const lines = rows.filter(({ player }) => player.team === team);
+        const strength = strengths?.find((entry) => entry.team === team);
+        const side =
+          game && game.home === team
+            ? 'home'
+            : game && game.away === team
+              ? 'away'
+              : null;
+
+        return {
+          team,
+          isHome: side === 'home',
+          record,
+          recentGames: recentResults(played, gameLimit),
+          gamesPlayed:
+            strength?.gamesPlayed ??
+            record.wins + record.losses + record.ties,
+          stats: strength
+            ? { hitting: strength.hitting, pitching: strength.pitching }
+            : { [group.key]: sumTeamStats(lines, group) },
+          statsSource: strength
+            ? PREVIEW_STATS_SOURCES.team
+            : PREVIEW_STATS_SOURCES.players,
+          ...(ratings
+            ? {
+                asOpponent: Object.fromEntries(
+                  Object.values(MATCHUP_SIDES).map((matchupSide) => [
+                    matchupSide,
+                    ratings[matchupSide].get(team) ?? null,
+                  ]),
+                ) as Record<MatchupSide, MatchupRating | null>,
+              }
+            : {}),
+          leaders: teamLeaders(lines, group.defaultStats, leaderLimit),
+          ...(side
+            ? {
+                probable:
+                  meetings.find(({ gameId }) => gameId === game?.gameId)
+                    ?.probables[side] ?? null,
+              }
+            : {}),
+        };
+      }),
+    );
+
+    return {
+      sport,
+      season,
+      ...range,
+      group: group.key,
+      scoring: scoring.key,
+      game,
+      teams: sides as [PreviewTeam, PreviewTeam],
+      series,
+      notes,
+    };
+  }
+
+  private async schedule(sport: SportKey, query: ScheduleWindowQuery) {
+    const provider = this.scheduleProvider(sport);
+    const catalog = await provider.getCatalog();
+    const season = query.season ?? catalog.defaultSeason;
+    const weeks = query.weeks?.length ? query.weeks : undefined;
+
+    if (weeks) {
+      if (!catalog.weeks) {
+        throw new BadRequestException(SPORTS_MESSAGES.weeksNeeded(sport));
+      }
+      if (query.startDate || query.endDate) {
+        throw new BadRequestException(SPORTS_MESSAGES.scheduleNeedsWindow);
+      }
+      const games = await provider.getSchedule({ season, weeks });
+      return { games, range: { weeks } as ScheduleWindow, season };
+    }
+
+    const range = resolveDateRange(query.startDate, query.endDate, query.days);
+    const games = await provider.getSchedule({ season, ...range });
+    return { games, range: range as ScheduleWindow, season };
+  }
+
+  /**
+   * The same window, guaranteed to be dates. Probable starters and projected
+   * starts reason in days of rest and in who is announced to pitch, so they
+   * need the full league-data capability rather than the fixtures alone — and
+   * a sport without it should hear that, not get an empty list of pitchers.
+   */
+  private async dateSchedule(sport: SportKey, query: DateRangeQuery) {
     const provider = this.leagueProvider(sport);
     const season = query.season ?? (await provider.getCatalog()).defaultSeason;
     const range = resolveDateRange(query.startDate, query.endDate, query.days);
@@ -889,14 +1032,30 @@ export class SportsService {
     return { games, range, season };
   }
 
+  /**
+   * Matchup ratings where the sport has team stats to rate, and an empty map
+   * where it does not — a schedule for a sport without them is still a
+   * schedule, so this returns nothing rather than throwing.
+   */
   private async matchupRatings(
     sport: SportKey,
     season: string,
     side: MatchupSide,
   ) {
-    const provider = this.leagueProvider(sport);
+    const provider = this.provider(sport);
+    if (!providesLeagueData(provider)) {
+      return new Map<string, MatchupRating>();
+    }
     const teams: TeamStrength[] = await provider.getTeamStrength(season);
     return rateMatchups(teams, provider.matchupMetrics[side]);
+  }
+
+  private scheduleProvider(sport: SportKey) {
+    const provider = this.provider(sport);
+    if (!providesSchedule(provider)) {
+      throw new BadRequestException(SPORTS_MESSAGES.noSchedule(sport));
+    }
+    return provider;
   }
 
   private leagueProvider(sport: SportKey) {
@@ -1045,3 +1204,31 @@ const compareRows =
         : av - bv;
     return diff * direction || a.player.name.localeCompare(b.player.name);
   };
+
+/**
+ * The game a preview is about: the one named, else the next one still to come,
+ * else the last meeting there was. "Still to come" is measured against today
+ * and not merely against having a score, because a postponed game keeps no
+ * score for ever and would otherwise be previewed as the next meeting months
+ * after it was called off. A season whose fixtures are all behind them is a
+ * real state of affairs, so the last one is reported rather than nothing.
+ */
+const selectPreviewGame = (
+  games: SeriesGame[],
+  gameId?: string,
+): { game: SeriesGame | null; isUpcoming: boolean } => {
+  if (gameId) {
+    const named = games.find((game) => game.gameId === gameId) ?? null;
+    return { game: named, isUpcoming: named?.score === null };
+  }
+
+  const ordered = [...games].sort((a, b) => a.date.localeCompare(b.date));
+  const today = toIsoDate(new Date());
+  const next = ordered.find(
+    ({ score, date }) => score === null && date >= today,
+  );
+
+  return next
+    ? { game: next, isUpcoming: true }
+    : { game: ordered[ordered.length - 1] ?? null, isUpcoming: false };
+};

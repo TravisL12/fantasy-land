@@ -6,6 +6,7 @@ export const SPORTS_ROUTES = {
   players: ':sport/players',
   playerStats: ':sport/players/:playerId/stats',
   schedule: ':sport/schedule',
+  preview: ':sport/preview',
   starts: ':sport/starts',
   matchups: ':sport/matchups',
   availability: ':sport/availability',
@@ -77,6 +78,25 @@ export const FORM_DEFAULTS = {
 } as const;
 
 export const SCHEDULE_DEFAULTS = { days: 7, maxDays: 21 } as const;
+
+/** Where a preview's team production came from. */
+export const PREVIEW_STATS_SOURCES = {
+  /** Upstream's own club line. */
+  team: 'team',
+  /** Summed from the club's players in one stat group. */
+  players: 'players',
+} as const;
+
+/**
+ * A preview is one game, so its lists are short by design: a dozen names and
+ * a dozen results would bury the two teams it is comparing.
+ */
+export const PREVIEW_DEFAULTS = {
+  leaders: 5,
+  maxLeaders: 10,
+  recentGames: 5,
+  maxRecentGames: 10,
+} as const;
 
 /** Caps for a game-log window, which is filtered in memory rather than fetched. */
 export const WINDOW_DEFAULTS = {
@@ -164,7 +184,7 @@ export const MAX_WEEK = 22;
 export const SEARCH_MAX_LENGTH = 50;
 
 /** Bump to invalidate every cached, normalized payload after a mapper change. */
-export const SPORTS_CACHE_VERSION = 'v6';
+export const SPORTS_CACHE_VERSION = 'v7';
 
 export const SPORTS_MESSAGES = {
   unknownGroup: (group: string) => `Unknown stat group "${group}"`,
@@ -175,7 +195,19 @@ export const SPORTS_MESSAGES = {
   weeksUnsupported: 'This sport does not support weekly stats',
   playerNotFound: 'Player not found',
   noLeagueData: (sport: string) =>
-    `No schedule, matchup or availability data for "${sport}" — this is only wired up for mlb so far`,
+    `No matchup or availability data for "${sport}" — this is only wired up for mlb so far`,
+  noSchedule: (sport: string) =>
+    `No schedule data for "${sport}" — its upstream publishes no fixture list.`,
+  scheduleNeedsWindow:
+    'Give either a date range or a list of weeks, not both — they would filter each other.',
+  weeksNeeded: (sport: string) =>
+    `"${sport}" has no weeks, so filter its schedule by date instead.`,
+  noGamesScheduled: (teams: string[]) =>
+    `${teams.join(' and ')} have no games left against each other this season.`,
+  previewFromPlayers: (group: string) =>
+    `This sport publishes no team-level stats, so each side's line is summed from its ${group.toLowerCase()} players — it covers only the positions in that group.`,
+  unknownGame: (gameId: string) =>
+    `No game "${gameId}" in this season's schedule for those teams.`,
   badDate: (value: string) => `"${value}" is not a YYYY-MM-DD date`,
   unknownTeam: (team: string, teams: string[]) =>
     `Unknown team "${team}" — use one of: ${teams.join(', ')}`,

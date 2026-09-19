@@ -17,6 +17,7 @@ import {
   EXPECTED_SORT_KEYS,
   MATCHUP_SIDES,
   MAX_WEEK,
+  PREVIEW_DEFAULTS,
   SCHEDULE_DEFAULTS,
   SEARCH_MAX_LENGTH,
   SEASON_PATTERN,
@@ -133,6 +134,53 @@ export class DateWindowQueryDto extends SeasonQueryDto {
   @Min(1)
   @Max(SCHEDULE_DEFAULTS.maxDays)
   days?: number;
+}
+
+/** The schedule view, which may also be asked for weeks where a sport has them. */
+export class ScheduleQueryDto extends DateWindowQueryDto {
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @Max(MAX_WEEK, { each: true })
+  weeks?: number[];
+}
+
+export class GamePreviewQueryDto extends SeasonQueryDto {
+  @IsString()
+  teamA!: string;
+
+  @IsString()
+  teamB!: string;
+
+  /** Previews a specific meeting instead of the next one. */
+  @IsOptional()
+  @IsString()
+  gameId?: string;
+
+  @IsOptional()
+  @IsString()
+  group?: string;
+
+  @IsOptional()
+  @IsString()
+  scoring?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(PREVIEW_DEFAULTS.maxLeaders)
+  leaders?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(PREVIEW_DEFAULTS.maxRecentGames)
+  recentGames?: number;
 }
 
 export class MatchupsQueryDto extends SeasonQueryDto {

@@ -1,5 +1,7 @@
 import {
   FORM_DEFAULTS,
+  PREVIEW_DEFAULTS,
+  SCHEDULE_DEFAULTS,
   SPORT_KEYS,
   WINDOW_DEFAULTS,
 } from '../../sports/sports.constants.js';
@@ -98,4 +100,47 @@ export const SPORTS_TOOL_MESSAGES = {
     `Cannot sort by "${sort}" — the "${group}" group has no such stat. Sort by one of: ${keys.join(', ')}.`,
   unknownSection: (section: string, valid: string[]) =>
     `Unknown "include" value "${section}". Valid values: ${valid.join(', ')}.`,
+} as const;
+
+/**
+ * A fixture window. Weeks and dates filter each other, so the service takes
+ * one or the other — saying so here saves the round spent on the rejection.
+ */
+export const SCHEDULE_WINDOW_PARAMS = {
+  startDate: {
+    type: 'string',
+    description: `First day to cover (YYYY-MM-DD). Defaults to today. Do not combine with weeks.`,
+  },
+  endDate: {
+    type: 'string',
+    description: `Last day to cover (YYYY-MM-DD). Defaults to ${SCHEDULE_DEFAULTS.days} days after the start; ${SCHEDULE_DEFAULTS.maxDays} is the most allowed.`,
+  },
+  weeks: {
+    type: 'array',
+    items: { type: 'integer' },
+    description:
+      'NFL weeks to cover, e.g. [3] or [3,4]. Use this instead of dates for football, and never both at once. MLB has no weeks.',
+  },
+} as const;
+
+export const TEAM_SIDE_PARAMS = {
+  teamA: {
+    type: 'string',
+    description: 'First team abbreviation, e.g. "KC" or "NYY".',
+  },
+  teamB: {
+    type: 'string',
+    description: 'The team to set against it, e.g. "BUF" or "BOS".',
+  },
+} as const;
+
+/** Rows and results per side, both capped so one preview stays readable. */
+export const SCHEDULE_LIMIT = { default: 40, max: 60 } as const;
+export const PREVIEW_LEADERS = {
+  default: PREVIEW_DEFAULTS.leaders,
+  max: PREVIEW_DEFAULTS.maxLeaders,
+} as const;
+export const PREVIEW_RECENT_GAMES = {
+  default: PREVIEW_DEFAULTS.recentGames,
+  max: PREVIEW_DEFAULTS.maxRecentGames,
 } as const;

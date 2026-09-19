@@ -7,7 +7,7 @@ import type { VersusPanelProps } from './VersusPanel.types';
 
 /**
  * A direct head-to-head: the entities come straight from the source, which is
- * what compare_players and compare_teams already return, so nothing has to be
+ * what compare_players and get_game_preview already return, so nothing has to be
  * ticked first. The better value on each metric is marked.
  */
 export const VersusPanel = ({ widget, rows }: VersusPanelProps) => {

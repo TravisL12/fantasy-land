@@ -18,6 +18,7 @@ import {
 import {
   FIND_PLAYER_LIMIT,
   LEADERBOARD_LIMIT,
+  SCHEDULE_LIMIT,
 } from './sports/sports-tools.constants.js';
 import type { ToolLimit } from './tools.types.js';
 
@@ -125,6 +126,38 @@ describe('tool limits fit inside MAX_TOOL_RESULT_CHARS', () => {
       STARTS_LIMIT,
       { player, starts: [start, start], confirmedStarts: 1, matchupScore: 62.5 },
       'get_pitcher_starts',
+    );
+  });
+
+  /**
+   * A baseball fixture is the wide case: football has no probable starters, so
+   * its games carry no pitcher at all.
+   */
+  it('get_schedule at its maximum', () => {
+    expectFits(
+      SCHEDULE_LIMIT,
+      {
+        gameId: '824382',
+        date: '2026-09-16',
+        week: null,
+        status: 'Scheduled',
+        home: 'PHI',
+        away: 'ATL',
+        score: { home: 5, away: 2 },
+        probables: {
+          home: {
+            playerId: '668881',
+            name: 'Firstname Lastname',
+            matchup: { score: 62.5, grade: 'good' },
+          },
+          away: {
+            playerId: '694973',
+            name: 'Firstname Lastname',
+            matchup: { score: 41.2, grade: 'neutral' },
+          },
+        },
+      },
+      'get_schedule',
     );
   });
 

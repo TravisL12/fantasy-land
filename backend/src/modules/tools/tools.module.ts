@@ -4,13 +4,14 @@ import { SportsModule } from '../sports/sports.module.js';
 import { MatchupRatingsTool } from './baseball/matchup-ratings.tool.js';
 import { PitcherStartsTool } from './baseball/pitcher-starts.tool.js';
 import { PlayerStatusTool } from './baseball/player-status.tool.js';
-import { TeamHeadToHeadTool } from './baseball/team-head-to-head.tool.js';
 import { ExpectedPointsTool } from './football/expected-points.tool.js';
 import { SleeperUserService } from './sleeper/sleeper.service.js';
 import { SleeperUserLeaguesTool } from './sleeper/user-leagues.tool.js';
 import { ComparePlayersTool } from './sports/compare-players.tool.js';
+import { GamePreviewTool } from './sports/game-preview.tool.js';
 import { FindPlayerTool } from './sports/find-player.tool.js';
 import { LeaderboardTool } from './sports/leaderboard.tool.js';
+import { ScheduleTool } from './sports/schedule.tool.js';
 import { PlayerStatsTool } from './sports/player-stats.tool.js';
 import { SportCatalogTool } from './sports/sport-catalog.tool.js';
 import { FANTASY_TOOLS } from './tools.constants.js';
@@ -28,10 +29,11 @@ const TOOLS = [
   LeaderboardTool,
   PlayerStatsTool,
   ComparePlayersTool,
+  ScheduleTool,
+  GamePreviewTool,
   ExpectedPointsTool,
   PitcherStartsTool,
   MatchupRatingsTool,
-  TeamHeadToHeadTool,
   PlayerStatusTool,
   SleeperUserLeaguesTool,
 ] as const;

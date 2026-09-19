@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { fetchJson } from '../../../../common/http/fetch-json.js';
+import {
+  fetchJson,
+  fetchJsonOrNull,
+} from '../../../../common/http/fetch-json.js';
 import { CACHE_TTL } from '../../../data-cache/data-cache.constants.js';
 import { DataCacheService } from '../../../data-cache/data-cache.service.js';
 import {
@@ -11,14 +14,22 @@ import type {
   DirectoryPlayer,
   GameLog,
   GameLogQuery,
+  HeadToHeadQuery,
   OpportunityProvider,
   PlayerDirectoryProvider,
+  ScheduledGame,
+  ScheduleProvider,
+  ScheduleQuery,
   SportCatalog,
   StatLine,
   StatLinesQuery,
+  TeamGamesQuery,
 } from '../../sports.types.js';
 import {
+  espnScoreboardUrl,
   NFL_CATALOG_BASE,
+  NFL_FINAL_STATUS,
+  NFL_SETTLED_STATUSES,
   NFL_FIRST_SEASON,
   NFL_GROUPS,
   NFL_OPPORTUNITY_STATS,
@@ -27,19 +38,24 @@ import {
   SLEEPER_PLAYERS_URL,
   SLEEPER_SEASON_TYPE,
   SLEEPER_STATE_URL,
+  sleeperScheduleUrl,
 } from './nfl.constants.js';
 import { findGroup, seasonRange } from '../provider.utils.js';
 import {
   aggregateStatLines,
   groupForPosition,
   mapDirectory,
+  mapSchedule,
+  mapScoreboard,
   mapStatLines,
   mapWeeklyLog,
   toPlayerRef,
 } from './nfl.mapper.js';
 import type {
+  EspnScoreboard,
   SleeperDirectory,
   SleeperPlayerInfo,
+  SleeperScheduleGame,
   SleeperStatEntry,
   SleeperState,
   SleeperWeeklyLog,
@@ -54,7 +70,7 @@ const cacheKey = (...parts: (string | number | undefined)[]) =>
 
 @Injectable()
 export class NflProvider
-  implements OpportunityProvider, PlayerDirectoryProvider
+  implements OpportunityProvider, PlayerDirectoryProvider, ScheduleProvider
 {
   readonly key = SPORT_KEYS.nfl;
   readonly opportunityStats = NFL_OPPORTUNITY_STATS;
@@ -170,6 +186,103 @@ export class NflProvider
   }
 
   /**
+   * Fixtures for a window. The whole season arrives in one small payload, so
+   * it is fetched once per season and filtered in memory — a week or a date
+   * range costs the same single request, and an already-cached season costs
+   * none.
+   */
+  async getSchedule({
+    season,
+    startDate,
+    endDate,
+    weeks,
+  }: ScheduleQuery): Promise<ScheduledGame[]> {
+    const games = await this.seasonSchedule(season);
+    const wanted = weeks?.length ? new Set(weeks) : null;
+
+    return games.filter(
+      (game) =>
+        (!wanted || (game.week !== null && wanted.has(game.week))) &&
+        (!startDate || game.date >= startDate) &&
+        (!endDate || game.date <= endDate),
+    );
+  }
+
+  async getHeadToHead({
+    season,
+    teams,
+    startDate,
+    endDate,
+  }: HeadToHeadQuery): Promise<ScheduledGame[]> {
+    const [a, b] = teams.map((team) => team.toUpperCase());
+    const games = await this.getSchedule({ season, startDate, endDate });
+
+    return games.filter(
+      ({ home, away }) =>
+        (home === a && away === b) || (home === b && away === a),
+    );
+  }
+
+  async getTeamGames({
+    season,
+    team,
+    startDate,
+    endDate,
+  }: TeamGamesQuery): Promise<ScheduledGame[]> {
+    const wanted = team.toUpperCase();
+    const games = await this.getSchedule({ season, startDate, endDate });
+    return games.filter(
+      ({ home, away }) => home === wanted || away === wanted,
+    );
+  }
+
+  /**
+   * The season's fixtures with every finished game's score attached. Sleeper
+   * publishes no scores at all, so finals come from ESPN — but only for the
+   * weeks that already hold a finished game, which is why an unplayed season
+   * costs nothing beyond the fixture list.
+   */
+  private async seasonSchedule(season: string): Promise<ScheduledGame[]> {
+    return this.cache.wrap(
+      cacheKey('schedule', season),
+      await this.ttlForSeason(season),
+      async () => {
+        const fixtures = await fetchJson<SleeperScheduleGame[]>(
+          sleeperScheduleUrl(season),
+        );
+        const boards = await Promise.all(
+          finishedWeeks(fixtures).map(({ week, settled }) =>
+            this.weekScores(season, week, settled),
+          ),
+        );
+        return mapSchedule(fixtures, new Map(boards.flatMap((b) => [...b])));
+      },
+    );
+  }
+
+  /**
+   * One week of final scores. A week whose games are all over cannot change
+   * again, so it is cached as an archived season is however live the rest of
+   * the season still is — otherwise every refresh re-pulls all eighteen.
+   * A scoreboard that fails to load leaves those games score-less rather than
+   * taking the fixture list down with it.
+   */
+  private async weekScores(season: string, week: number, settled: boolean) {
+    const entries = await this.cache.wrap(
+      cacheKey('scores', season, week),
+      settled ? CACHE_TTL.archived : CACHE_TTL.live,
+      async () => [
+        ...mapScoreboard(
+          (await fetchJsonOrNull<EspnScoreboard>(
+            espnScoreboardUrl(season, week),
+          )) ?? {},
+        ),
+      ],
+    );
+    return new Map(entries);
+  }
+
+  /**
    * Who a player id belongs to. The directory answers for anyone who can
    * score, so the per-player fetch is only reached for the rest — which is the
    * point of holding the whole list: one daily request in place of one per
@@ -205,3 +318,23 @@ export class NflProvider
     return season === state.season ? CACHE_TTL.live : CACHE_TTL.archived;
   }
 }
+
+/**
+ * Weeks worth asking ESPN about, and whether each one is done. `settled` is
+ * what lets a finished week be cached for good in the middle of a live
+ * season; a week with one game still to play is not settled, however many of
+ * its others are final.
+ */
+const finishedWeeks = (fixtures: SleeperScheduleGame[]) => {
+  const weeks = new Map<number, { played: number; pending: number }>();
+  for (const { week, status } of fixtures) {
+    const entry = weeks.get(week) ?? { played: 0, pending: 0 };
+    if (status === NFL_FINAL_STATUS) entry.played += 1;
+    if (!NFL_SETTLED_STATUSES.includes(status)) entry.pending += 1;
+    weeks.set(week, entry);
+  }
+
+  return [...weeks]
+    .filter(([, { played }]) => played > 0)
+    .map(([week, { pending }]) => ({ week, settled: pending === 0 }));
+};

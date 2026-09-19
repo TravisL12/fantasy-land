@@ -3,7 +3,6 @@ import type { SportsService } from '../../sports/sports.service.js';
 import { MatchupRatingsTool } from './matchup-ratings.tool.js';
 import { PitcherStartsTool } from './pitcher-starts.tool.js';
 import { PlayerStatusTool } from './player-status.tool.js';
-import { TeamHeadToHeadTool } from './team-head-to-head.tool.js';
 
 const start = (
   date: string,
@@ -240,44 +239,5 @@ describe('get_player_status', () => {
     await expect(tool.execute({ search: 'Nobody' })).rejects.toThrow(
       NotFoundException,
     );
-  });
-});
-
-describe('compare_teams', () => {
-  const comparison = { sport: 'mlb', season: '2026', teams: [], series: {} };
-
-  const stub = () => {
-    const getTeamHeadToHead = vi.fn().mockResolvedValue(comparison);
-    return { getTeamHeadToHead, tool: new TeamHeadToHeadTool(sportsStub({ getTeamHeadToHead })) };
-  };
-
-  it('defaults to mlb and passes both teams and the window through', async () => {
-    const { getTeamHeadToHead, tool } = stub();
-
-    const result = await tool.execute({
-      teamA: 'NYY',
-      teamB: 'BOS',
-      startDate: '2026-07-01',
-      endDate: '2026-08-31',
-    });
-
-    expect(result).toBe(comparison);
-    expect(getTeamHeadToHead).toHaveBeenCalledWith('mlb', {
-      teamA: 'NYY',
-      teamB: 'BOS',
-      season: undefined,
-      startDate: '2026-07-01',
-      endDate: '2026-08-31',
-    });
-  });
-
-  // A model that cannot find the second team fills the argument in rather than asking.
-  it('refuses a placeholder team instead of looking it up upstream', async () => {
-    const { getTeamHeadToHead, tool } = stub();
-
-    await expect(
-      tool.execute({ teamA: 'NYY', teamB: '<team>' }),
-    ).rejects.toThrow(BadRequestException);
-    expect(getTeamHeadToHead).not.toHaveBeenCalled();
   });
 });

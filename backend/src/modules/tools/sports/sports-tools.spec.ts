@@ -7,11 +7,14 @@ import { WINDOW_DEFAULTS } from '../../sports/sports.constants.js';
 import type { SportsService } from '../../sports/sports.service.js';
 import { ComparePlayersTool } from './compare-players.tool.js';
 import { FindPlayerTool } from './find-player.tool.js';
+import { GamePreviewTool } from './game-preview.tool.js';
+import { ScheduleTool } from './schedule.tool.js';
 import { LeaderboardTool } from './leaderboard.tool.js';
 import { PlayerStatsTool } from './player-stats.tool.js';
 import {
   GAME_LOG_LIMIT,
   LEADERBOARD_LIMIT,
+  SCHEDULE_LIMIT,
 } from './sports-tools.constants.js';
 
 const vele = { id: '11834', name: 'Devaughn Vele', team: 'NO', position: 'WR' };
@@ -585,5 +588,176 @@ describe('sports tools', () => {
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
+  });
+});
+
+describe('get_schedule', () => {
+  const games = [
+    {
+      gameId: '1',
+      date: '2026-09-20',
+      week: 2,
+      status: 'Final',
+      home: 'KC',
+      away: 'BUF',
+      probables: { home: null, away: null },
+      score: { home: 24, away: 21 },
+    },
+    {
+      gameId: '2',
+      date: '2026-09-21',
+      week: 2,
+      status: 'Scheduled',
+      home: 'SF',
+      away: 'SEA',
+      probables: { home: null, away: null },
+      score: null,
+    },
+  ];
+
+  const stub = (rows = games) => {
+    const getSchedule = vi.fn().mockResolvedValue({
+      sport: 'nfl',
+      season: '2026',
+      weeks: [2],
+      games: rows,
+    });
+    return {
+      getSchedule,
+      tool: new ScheduleTool({ getSchedule } as unknown as SportsService),
+    };
+  };
+
+  it('passes weeks through and returns every game in the window', async () => {
+    const { getSchedule, tool } = stub();
+
+    const result = (await tool.execute({ weeks: ['2'] })) as {
+      total: number;
+      games: { gameId: string }[];
+    };
+
+    expect(getSchedule).toHaveBeenCalledWith('nfl', {
+      season: undefined,
+      startDate: undefined,
+      endDate: undefined,
+      weeks: [2],
+    });
+    expect(result.total).toBe(2);
+    expect(result.games.map(({ gameId }) => gameId)).toEqual(['1', '2']);
+  });
+
+  it('filters to one team, matching either side of the fixture', async () => {
+    const { tool } = stub();
+
+    const result = (await tool.execute({ team: 'buf' })) as {
+      team: string;
+      total: number;
+      games: { gameId: string }[];
+    };
+
+    expect(result.team).toBe('BUF');
+    expect(result.games.map(({ gameId }) => gameId)).toEqual(['1']);
+  });
+
+  // An empty probables pair is baseball's shape, not football's: dropping it
+  // keeps two null fields per game out of every NFL result.
+  it('leaves probables out entirely when there are none', async () => {
+    const { tool } = stub();
+
+    const [first] = (
+      (await tool.execute({})) as { games: Record<string, unknown>[] }
+    ).games;
+
+    expect(first).not.toHaveProperty('probables');
+  });
+
+  it('caps how many games one call can return', async () => {
+    const many = Array.from({ length: SCHEDULE_LIMIT.max + 10 }, (_, i) => ({
+      ...games[0],
+      gameId: String(i),
+    }));
+    const { tool } = stub(many);
+
+    const result = (await tool.execute({ limit: 500 })) as {
+      total: number;
+      games: unknown[];
+    };
+
+    expect(result.total).toBe(many.length);
+    expect(result.games).toHaveLength(SCHEDULE_LIMIT.max);
+  });
+});
+
+describe('get_game_preview', () => {
+  const preview = {
+    sport: 'mlb',
+    season: '2026',
+    teams: [
+      { team: 'NYY', asOpponent: { pitching: { score: 70, grade: 'good', metrics: [] } } },
+      { team: 'BOS', asOpponent: { pitching: { score: 30, grade: 'tough', metrics: [] } } },
+    ],
+    series: {},
+    notes: [],
+  };
+
+  const stub = () => {
+    const getGamePreview = vi.fn().mockResolvedValue(preview);
+    return {
+      getGamePreview,
+      tool: new GamePreviewTool({ getGamePreview } as unknown as SportsService),
+    };
+  };
+
+  it('passes both teams and the window through', async () => {
+    const { getGamePreview, tool } = stub();
+
+    await tool.execute({
+      sport: 'mlb',
+      teamA: 'NYY',
+      teamB: 'BOS',
+      startDate: '2026-07-01',
+      endDate: '2026-08-31',
+    });
+
+    expect(getGamePreview).toHaveBeenCalledWith(
+      'mlb',
+      expect.objectContaining({
+        teamA: 'NYY',
+        teamB: 'BOS',
+        startDate: '2026-07-01',
+        endDate: '2026-08-31',
+      }),
+    );
+  });
+
+  // A model that cannot find the second team fills the argument in rather than asking.
+  it('refuses a placeholder team instead of looking it up upstream', async () => {
+    const { getGamePreview, tool } = stub();
+
+    await expect(
+      tool.execute({ teamA: 'NYY', teamB: '<team>' }),
+    ).rejects.toThrow(BadRequestException);
+    expect(getGamePreview).not.toHaveBeenCalled();
+  });
+
+  it('drops the per-metric breakdown for a chat turn but keeps the grade', async () => {
+    const { tool } = stub();
+
+    const chat = (await tool.execute({
+      teamA: 'NYY',
+      teamB: 'BOS',
+    })) as unknown as {
+      teams: { asOpponent: { pitching: Record<string, unknown> } }[];
+    };
+    expect(chat.teams[0].asOpponent.pitching).toEqual({
+      score: 70,
+      grade: 'good',
+    });
+
+    const full = await tool.execute(
+      { teamA: 'NYY', teamB: 'BOS' },
+      { full: true },
+    );
+    expect(full).toBe(preview);
   });
 });

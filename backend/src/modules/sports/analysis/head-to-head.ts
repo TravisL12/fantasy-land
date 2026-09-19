@@ -104,15 +104,29 @@ export const playerHeadToHead = (
   };
 };
 
-const winnerOf = ({ home, away, score }: ScheduledGame): string | null => {
+/** Null for a draw as well as for a game not yet played — neither is a win. */
+export const winnerOf = ({ home, away, score }: ScheduledGame): string | null => {
   if (!score || score.home === score.away) return null;
   return score.home > score.away ? home : away;
 };
+
+/** A fixture as a result: the same game with its winner worked out. */
+export const toSeriesGame = (game: ScheduledGame): SeriesGame => ({
+  gameId: game.gameId,
+  date: game.date,
+  week: game.week,
+  status: game.status,
+  home: game.home,
+  away: game.away,
+  score: game.score,
+  winner: winnerOf(game),
+});
 
 const emptyRecord = (team: string): SeriesRecord => ({
   team,
   wins: 0,
   losses: 0,
+  ties: 0,
   scoredFor: 0,
   scoredAgainst: 0,
   homeWins: 0,
@@ -154,19 +168,14 @@ export const teamSeries = (
           else record.awayWins += 1;
         } else if (winner) {
           record.losses += 1;
+        } else {
+          // A finished game with no winner is a draw, which football has.
+          record.ties += 1;
         }
       }
     }
 
-    return {
-      gameId: game.gameId,
-      date: game.date,
-      status: game.status,
-      home: game.home,
-      away: game.away,
-      score: game.score,
-      winner,
-    };
+    return toSeriesGame(game);
   });
 
   const upcoming = serialized.filter(({ score }) => score === null);

@@ -4,8 +4,11 @@ import {
   aggregateStatLines,
   groupForPosition,
   mapDirectory,
+  mapSchedule,
+  mapScoreboard,
   mapStatLines,
   mapWeeklyLog,
+  scoreKey,
 } from './nfl.mapper.js';
 import type {
   SleeperDirectoryEntry,
@@ -183,5 +186,105 @@ describe('mapDirectory', () => {
     });
 
     expect(player.name).toBe('Josh Allen');
+  });
+});
+
+describe('NFL schedule mapper', () => {
+  const fixture = (
+    week: number,
+    home: string,
+    away: string,
+    status = 'complete',
+  ) => ({
+    game_id: `${week}-${home}`,
+    date: '2026-09-20',
+    week,
+    home,
+    away,
+    status,
+  });
+
+  const espnGame = (
+    home: string,
+    away: string,
+    score: [number, number] | null,
+  ) => ({
+    status: { type: { completed: score !== null } },
+    competitors: [
+      { homeAway: 'home', team: { abbreviation: home }, score: String(score?.[0]) },
+      { homeAway: 'away', team: { abbreviation: away }, score: String(score?.[1]) },
+    ],
+  });
+
+  it('turns upstream status wording into the same words every sport uses', () => {
+    const games = mapSchedule(
+      [
+        fixture(2, 'KC', 'BUF', 'pre_game'),
+        fixture(2, 'SF', 'SEA', 'in_game'),
+        fixture(1, 'NE', 'NYJ', 'complete'),
+        fixture(1, 'DAL', 'PHI', 'canceled'),
+      ],
+      new Map(),
+    );
+
+    expect(games.map(({ status }) => status)).toEqual([
+      'Scheduled',
+      'In Progress',
+      'Final',
+      'Canceled',
+    ]);
+    // Football has no probable starter the way baseball does.
+    expect(games[0].probables).toEqual({ home: null, away: null });
+    expect(games[0].week).toBe(2);
+  });
+
+  it('attaches a final score to the fixture it belongs to', () => {
+    const scores = mapScoreboard({
+      events: [{ competitions: [espnGame('NE', 'NYJ', [24, 21])] }],
+    });
+    const [game] = mapSchedule([fixture(1, 'NE', 'NYJ')], scores);
+
+    expect(game.score).toEqual({ home: 24, away: 21 });
+  });
+
+  /**
+   * The two feeds disagree on exactly one club, and a fixture that cannot find
+   * its own score would silently read as a game that was never played.
+   */
+  it('reconciles the one abbreviation the two sources spell differently', () => {
+    const scores = mapScoreboard({
+      events: [{ competitions: [espnGame('WSH', 'NYG', [17, 10])] }],
+    });
+
+    expect([...scores.keys()]).toEqual([scoreKey('WAS', 'NYG')]);
+    expect(mapSchedule([fixture(1, 'WAS', 'NYG')], scores)[0].score).toEqual({
+      home: 17,
+      away: 10,
+    });
+  });
+
+  it('leaves a game in progress without a score, as baseball does', () => {
+    const scores = mapScoreboard({
+      events: [{ competitions: [espnGame('KC', 'BUF', null)] }],
+    });
+
+    expect(scores.size).toBe(0);
+    expect(mapSchedule([fixture(2, 'KC', 'BUF', 'in_game')], scores)[0].score).toBe(
+      null,
+    );
+  });
+
+  /**
+   * Sleeper's own status is the authority on whether a game counts: a score
+   * without a matching finished fixture must not invent a result.
+   */
+  it('ignores a score for a fixture upstream has not called final', () => {
+    const scores = mapScoreboard({
+      events: [{ competitions: [espnGame('KC', 'BUF', [30, 27])] }],
+    });
+
+    expect(mapSchedule([fixture(2, 'KC', 'BUF', 'pre_game')], scores)[0].score).toBe(
+      null,
+    );
   });
 });

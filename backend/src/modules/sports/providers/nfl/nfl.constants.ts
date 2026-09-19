@@ -23,6 +23,51 @@ export const SLEEPER_STATE_URL = 'https://api.sleeper.app/v1/state/nfl';
  */
 export const SLEEPER_PLAYERS_URL = 'https://api.sleeper.app/v1/players/nfl';
 
+/** A whole season of fixtures in one ~27KB payload, keyed by week. */
+export const sleeperScheduleUrl = (season: string) =>
+  `https://api.sleeper.app/schedule/nfl/${SLEEPER_SEASON_TYPE}/${season}`;
+
+/**
+ * Sleeper publishes the fixture list but never a score, so finals come from
+ * ESPN's public scoreboard — one request per week, cached like any other
+ * normalized payload, and only for weeks that actually contain a finished
+ * game. A season that is over is fetched once and then never again.
+ */
+export const espnScoreboardUrl = (season: string, week: number) =>
+  'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard' +
+  `?dates=${season}&seasontype=${ESPN_REGULAR_SEASON_TYPE}&week=${week}`;
+
+const ESPN_REGULAR_SEASON_TYPE = 2;
+
+/**
+ * The two sources disagree on exactly one club abbreviation, so the mapping is
+ * a single entry rather than a table: everything else matches Sleeper already.
+ */
+export const ESPN_TEAM_ALIASES: Record<string, string> = { WSH: 'WAS' };
+
+/**
+ * Sleeper's own status wording, turned into the same plain words MLB's feed
+ * uses, so `status` reads the same whatever sport produced the game. Anything
+ * unrecognized passes through as upstream wrote it rather than being guessed.
+ */
+export const NFL_GAME_STATUSES: Record<string, string> = {
+  pre_game: 'Scheduled',
+  in_game: 'In Progress',
+  complete: 'Final',
+  canceled: 'Canceled',
+  postponed: 'Postponed',
+};
+
+/** The status that means a game is over and its score is a result. */
+export const NFL_FINAL_STATUS = 'complete';
+
+/**
+ * Statuses a game never leaves. A canceled game has no score and never will,
+ * so a week holding one is still finished — counting only finals would leave
+ * that week re-fetching its scoreboard for the rest of the season.
+ */
+export const NFL_SETTLED_STATUSES = ['complete', 'canceled', 'postponed'];
+
 /** Positions worth keeping from the directory; the rest never score points. */
 export const NFL_FANTASY_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
 

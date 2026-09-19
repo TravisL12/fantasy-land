@@ -12,6 +12,7 @@ const catalog = {
   defaultSeason: '2026',
   groups: [{ key: 'offense', label: 'Offense', positions: ['QB', 'WR'] }],
   capabilities: {
+    schedule: false,
     leagueData: false,
     expectedPoints: true,
     playerDirectory: true,

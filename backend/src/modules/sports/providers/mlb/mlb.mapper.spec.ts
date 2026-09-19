@@ -168,6 +168,7 @@ describe('MLB schedule mapper', () => {
     expect(games).toEqual([
       {
         gameId: '824382',
+        week: null,
         date: '2026-09-16',
         status: 'Scheduled',
         home: 'PHI',

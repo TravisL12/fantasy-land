@@ -9,15 +9,25 @@ import type {
   LeagueDataProvider,
   OpportunityProvider,
   PlayerDirectoryProvider,
+  ScheduleProvider,
   SportProvider,
   StatDefinition,
   StatGroup,
 } from './sports.types.js';
 
-/** Narrows a provider to the optional schedule/strength/availability capability. */
+/** Narrows a provider to the optional team-strength and availability capability. */
 export const providesLeagueData = (
   provider: SportProvider,
-): provider is LeagueDataProvider => 'getSchedule' in provider;
+): provider is LeagueDataProvider => 'getTeamStrength' in provider;
+
+/**
+ * Narrows a provider to the fixture list alone. Checked separately from league
+ * data because a sport can publish a schedule without publishing team stats,
+ * which is exactly where NFL sits.
+ */
+export const providesSchedule = (
+  provider: SportProvider,
+): provider is ScheduleProvider => 'getSchedule' in provider;
 
 /** Narrows a provider to the optional whole-league player list. */
 export const providesPlayerDirectory = (

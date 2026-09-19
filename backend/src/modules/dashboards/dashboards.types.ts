@@ -79,7 +79,7 @@ export interface CompareWidget extends WidgetBase {
 
 /**
  * The same panel without the ticking: the entities come straight from a source,
- * which is what compare_players and compare_teams already return.
+ * which is what compare_players and get_game_preview already return.
  */
 export interface VersusWidget extends SourcedWidget {
   type: typeof WIDGET_TYPES.versus;

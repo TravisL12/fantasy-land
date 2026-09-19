@@ -74,7 +74,7 @@ export const ROW_ARRAY_KEYS = [
 ] as const;
 export const DEFAULT_ROW_KEY = 'id';
 export const DEFAULT_LABEL_PATH = 'name';
-/** compare_players and compare_teams both answer with a "players"/"teams" array. */
+/** compare_players and get_game_preview answer with a "players"/"teams" array. */
 export const DEFAULT_VERSUS_ROWS_PATH = 'players';
 export const DEFAULT_METER_MAX = 100;
 
@@ -189,7 +189,7 @@ export const BUILDER_SYSTEM_PROMPT = [
   '- compare: transposes the rows ticked in a table ("from": the table id). Use it',
   '  when the user wants to shortlist from a list.',
   '- versus: a direct head-to-head of the 2-4 entities in one source, no ticking.',
-  '  Point it at compare_players or compare_teams and give it "metrics". This is the',
+  '  Point it at compare_players or get_game_preview and give it "metrics". This is the',
   '  right widget for "player A vs player B".',
   '- line: a trend. "x" is the path to the time axis (a game log\'s "week" or "date");',
   '  each entry in "series" is one line. A series may name its own "source", so two',

@@ -5,21 +5,27 @@ import type {
   DirectoryPlayer,
   GameLogEntry,
   PlayerRef,
+  ScheduledGame,
   StatGroup,
   StatLine,
 } from '../../sports.types.js';
 import { pickStats } from '../provider.utils.js';
 import {
+  ESPN_TEAM_ALIASES,
   NFL_AVAILABILITY,
   NFL_DERIVED_RATES,
   NFL_FANTASY_POSITIONS,
+  NFL_FINAL_STATUS,
+  NFL_GAME_STATUSES,
   NFL_GROUP_KEYS,
   NFL_INJURY_STATUSES,
 } from './nfl.constants.js';
 import type {
+  EspnScoreboard,
   SleeperDirectory,
   SleeperDirectoryEntry,
   SleeperPlayerInfo,
+  SleeperScheduleGame,
   SleeperStatEntry,
   SleeperWeeklyLog,
 } from './nfl.types.js';
@@ -180,3 +186,71 @@ export const aggregateStatLines = (
     return line;
   });
 };
+
+const espnTeam = (abbreviation: string | null | undefined) =>
+  abbreviation ? ESPN_TEAM_ALIASES[abbreviation] ?? abbreviation : null;
+
+/** A final score keyed by the two clubs, so a fixture can find its own result. */
+export const scoreKey = (home: string, away: string) => `${away}@${home}`;
+
+/**
+ * Final scores out of one week of ESPN's scoreboard. A game still in progress
+ * carries a running score upstream; it is dropped here for the same reason
+ * baseball drops one, so a live game can never be counted as a result.
+ */
+export const mapScoreboard = (
+  scoreboard: EspnScoreboard,
+): Map<string, { home: number; away: number }> => {
+  const scores = new Map<string, { home: number; away: number }>();
+
+  for (const event of scoreboard.events ?? []) {
+    for (const competition of event.competitions ?? []) {
+      if (!competition.status?.type?.completed) continue;
+
+      const sides = Object.fromEntries(
+        (competition.competitors ?? []).map((competitor) => [
+          competitor.homeAway,
+          {
+            team: espnTeam(competitor.team?.abbreviation),
+            score: Number(competitor.score),
+          },
+        ]),
+      );
+      const { home, away } = sides;
+      if (!home?.team || !away?.team) continue;
+      if (!Number.isFinite(home.score) || !Number.isFinite(away.score)) continue;
+
+      scores.set(scoreKey(home.team, away.team), {
+        home: home.score,
+        away: away.score,
+      });
+    }
+  }
+
+  return scores;
+};
+
+/**
+ * Sleeper fixtures, with each finished game's score attached from ESPN. There
+ * are no probable starters in football the way there are in baseball, so that
+ * side of a ScheduledGame is always empty rather than invented.
+ */
+export const mapSchedule = (
+  games: SleeperScheduleGame[],
+  scores: Map<string, { home: number; away: number }>,
+): ScheduledGame[] =>
+  games
+    .filter(({ home, away }) => home && away)
+    .map((game) => ({
+      gameId: game.game_id,
+      date: game.date,
+      week: game.week,
+      status: NFL_GAME_STATUSES[game.status] ?? game.status,
+      home: game.home,
+      away: game.away,
+      probables: { home: null, away: null },
+      score:
+        game.status === NFL_FINAL_STATUS
+          ? scores.get(scoreKey(game.home, game.away)) ?? null
+          : null,
+    }));

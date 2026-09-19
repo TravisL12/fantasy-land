@@ -45,3 +45,33 @@ export interface SleeperStatEntry {
 
 /** Player game log keyed by week; bye weeks are null. */
 export type SleeperWeeklyLog = Record<string, SleeperStatEntry | null>;
+
+/** One fixture from Sleeper's season schedule. */
+export interface SleeperScheduleGame {
+  game_id: string;
+  date: string;
+  week: number;
+  home: string;
+  away: string;
+  /** e.g. "pre_game", "in_game", "complete", "canceled". */
+  status: string;
+}
+
+/**
+ * ESPN's scoreboard, read only for final scores — Sleeper's schedule carries
+ * the fixtures but no result. Only the handful of fields we use are typed.
+ */
+export interface EspnCompetitor {
+  homeAway: string;
+  score?: string | null;
+  team: { abbreviation?: string | null };
+}
+
+export interface EspnScoreboard {
+  events?: {
+    competitions?: {
+      status?: { type?: { completed?: boolean } };
+      competitors?: EspnCompetitor[];
+    }[];
+  }[];
+}

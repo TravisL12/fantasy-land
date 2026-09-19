@@ -11,6 +11,7 @@ import type {
   PlayerDirectoryResponse,
   PlayerStatsQuery,
   PlayerStatsResponse,
+  ScheduleQuery,
   ScheduleResponse,
   SportCatalog,
   SportKey,
@@ -51,7 +52,7 @@ export const sportsApi = baseApi.injectEndpoints({
         params,
       }),
     }),
-    getSchedule: build.query<ScheduleResponse, DateWindowQuery>({
+    getSchedule: build.query<ScheduleResponse, ScheduleQuery>({
       query: ({ sport, ...params }) => ({
         url: `/sports/${sport}/schedule`,
         params,

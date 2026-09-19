@@ -21,7 +21,7 @@ export const SPORT_TABS: SportTab[] = [
   {
     segment: SPORT_VIEW_SEGMENTS.schedule,
     label: 'Schedule',
-    requires: 'leagueData',
+    requires: 'schedule',
   },
   {
     segment: SPORT_VIEW_SEGMENTS.starts,

@@ -163,6 +163,8 @@ export const mapSchedule = (
         {
           gameId: String(game.gamePk),
           date: game.officialDate,
+          // Baseball has no fantasy week; a date is the only index it has.
+          week: null,
           status: game.status.detailedState,
           home,
           away,

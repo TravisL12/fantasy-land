@@ -10,6 +10,7 @@ const catalog = (
     key: 'nfl',
     league: 'NFL',
     capabilities: {
+      schedule: false,
       leagueData: false,
       expectedPoints: false,
       playerDirectory: false,
@@ -45,16 +46,33 @@ describe('SportTabs', () => {
     expect(screen.queryByRole('link', { name: 'Schedule' })).toBeNull();
   });
 
-  it('offers every league-data view together, since one capability covers them', () => {
-    renderWithProviders(<SportTabs catalog={catalog({ leagueData: true })} />);
+  it('offers the league-data views together, since one capability covers them', () => {
+    renderWithProviders(
+      <SportTabs catalog={catalog({ schedule: true, leagueData: true })} />,
+    );
 
     for (const label of ['Schedule', 'Starts', 'Matchups', 'Availability']) {
       expect(screen.getByRole('link', { name: label })).toBeVisible();
     }
   });
 
+  /**
+   * A fixture list is the narrower capability: a sport can have a schedule
+   * without the team stats the other three views are built on.
+   */
+  it('offers the schedule alone to a sport with fixtures but no team stats', () => {
+    renderWithProviders(<SportTabs catalog={catalog({ schedule: true })} />);
+
+    expect(screen.getByRole('link', { name: 'Schedule' })).toBeVisible();
+    for (const label of ['Starts', 'Matchups', 'Availability']) {
+      expect(screen.queryByRole('link', { name: label })).toBeNull();
+    }
+  });
+
   it('points each tab at that sport', () => {
-    renderWithProviders(<SportTabs catalog={catalog({ leagueData: true })} />);
+    renderWithProviders(
+      <SportTabs catalog={catalog({ schedule: true, leagueData: true })} />,
+    );
 
     expect(screen.getByRole('link', { name: 'Matchups' })).toHaveAttribute(
       'href',

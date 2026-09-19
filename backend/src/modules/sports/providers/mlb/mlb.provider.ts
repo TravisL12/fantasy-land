@@ -18,6 +18,7 @@ import type {
   ScheduledGame,
   ScheduleQuery,
   SportCatalog,
+  TeamGamesQuery,
   StatLinesQuery,
   TeamStrength,
 } from '../../sports.types.js';
@@ -142,10 +143,15 @@ export class MlbProvider implements LeagueDataProvider {
     );
   }
 
+  /**
+   * Baseball has no weeks, so a window is always a date range. Both ends are
+   * defaulted to the season's bounds so the signature stays honest, but the
+   * service never actually asks for a whole season here — that is 2,400 games.
+   */
   async getSchedule({
     season,
-    startDate,
-    endDate,
+    startDate = seasonStart(season),
+    endDate = seasonEnd(season),
   }: ScheduleQuery): Promise<ScheduledGame[]> {
     return this.cache.wrap(
       cacheKey('schedule', startDate, endDate),
@@ -187,6 +193,38 @@ export class MlbProvider implements LeagueDataProvider {
         const response = await fetchJson<MlbScheduleResponse>(
           `${MLB_API}/schedule?sportId=${MLB_SPORT_ID}&season=${season}` +
             `&gameType=${MLB_GAME_TYPE}&teamId=${ids[0]}&opponentId=${ids[1]}` +
+            (startDate && endDate
+              ? `&startDate=${startDate}&endDate=${endDate}`
+              : ''),
+        );
+        return mapSchedule(response.dates, abbreviations);
+      },
+    );
+  }
+
+  /**
+   * One club's season, narrowed upstream by team id rather than filtered out
+   * of the league-wide slate — 162 games instead of 2,430 for the same call.
+   */
+  async getTeamGames({
+    season,
+    team,
+    startDate,
+    endDate,
+  }: TeamGamesQuery): Promise<ScheduledGame[]> {
+    const ttl = await this.ttlForSeason(season);
+
+    return this.cache.wrap(
+      cacheKey('teamGames', season, team, startDate ?? '', endDate ?? ''),
+      ttl,
+      async () => {
+        const abbreviations = await this.getTeams(season);
+        const id = teamId(abbreviations, team);
+        if (id === undefined) return [];
+
+        const response = await fetchJson<MlbScheduleResponse>(
+          `${MLB_API}/schedule?sportId=${MLB_SPORT_ID}&season=${season}` +
+            `&gameType=${MLB_GAME_TYPE}&teamId=${id}` +
             (startDate && endDate
               ? `&startDate=${startDate}&endDate=${endDate}`
               : ''),
@@ -292,3 +330,10 @@ export class MlbProvider implements LeagueDataProvider {
     return season === seasonId ? CACHE_TTL.live : CACHE_TTL.archived;
   }
 }
+
+/**
+ * A season's outer bounds. Only a defaulted getSchedule call reaches these,
+ * and the regular season sits well inside them.
+ */
+const seasonStart = (season: string) => `${season}-01-01`;
+const seasonEnd = (season: string) => `${season}-12-31`;

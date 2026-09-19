@@ -36,6 +36,7 @@ const game = (
 ): ScheduledGame => ({
   gameId: `${date}-${home}`,
   date,
+  week: null,
   status: score ? 'Final' : 'Scheduled',
   home,
   away,
@@ -75,6 +76,7 @@ const buildProvider = (): LeagueDataProvider => ({
   matchupMetrics: { pitching: metrics, hitting: metrics },
   getCatalog: vi.fn().mockResolvedValue(catalog),
   getStatLines: vi.fn().mockResolvedValue([]),
+  getTeamGames: vi.fn().mockResolvedValue([]),
   getGameLog: vi.fn().mockResolvedValue({
     player: { id: '1', name: 'Zack Wheeler', team: 'PHI', position: 'SP' },
     group: 'pitching',
@@ -247,7 +249,17 @@ describe('SportsService league data', () => {
     expect(provider.getSchedule).not.toHaveBeenCalled();
   });
 
-  describe('team head-to-head', () => {
+  describe('game preview', () => {
+    // Which meeting is "next" is measured against today, so the clock is
+    // pinned inside this season rather than left to drift past it.
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-19T12:00:00Z'));
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     const played = [
       game('2026-04-10', 'PHI', 'BOS', undefined, { home: 5, away: 2 }),
       game('2026-04-11', 'PHI', 'BOS', undefined, { home: 1, away: 3 }),
@@ -259,7 +271,7 @@ describe('SportsService league data', () => {
       vi.mocked(provider.getHeadToHead).mockResolvedValue(played);
       const service = new SportsService([provider]);
 
-      const result = await service.getTeamHeadToHead('mlb', {
+      const result = await service.getGamePreview('mlb', {
         teamA: 'phi',
         teamB: 'BOS',
       });
@@ -279,11 +291,63 @@ describe('SportsService league data', () => {
       ]);
     });
 
+    it('previews the next unplayed meeting, not the last result', async () => {
+      const provider = buildProvider();
+      vi.mocked(provider.getHeadToHead).mockResolvedValue(played);
+      const service = new SportsService([provider]);
+
+      const result = await service.getGamePreview('mlb', {
+        teamA: 'PHI',
+        teamB: 'BOS',
+      });
+
+      expect(result.game).toMatchObject({ date: '2026-09-26', score: null });
+      // The home side of that game is the one flagged as home.
+      expect(result.teams.map(({ team, isHome }) => [team, isHome])).toEqual([
+        ['PHI', false],
+        ['BOS', true],
+      ]);
+    });
+
+    /**
+     * A postponed game keeps no score for ever, so "unplayed" alone would
+     * preview a game called off months ago as the next meeting.
+     */
+    it('skips an unplayed game in the past when picking the next meeting', async () => {
+      const provider = buildProvider();
+      vi.mocked(provider.getHeadToHead).mockResolvedValue([
+        game('2026-04-10', 'PHI', 'BOS'),
+        ...played,
+      ]);
+      const service = new SportsService([provider]);
+
+      const result = await service.getGamePreview('mlb', {
+        teamA: 'PHI',
+        teamB: 'BOS',
+      });
+
+      expect(result.game).toMatchObject({ date: '2026-09-26' });
+    });
+
+    it('falls back to the last meeting when none are left, and says so', async () => {
+      const provider = buildProvider();
+      vi.mocked(provider.getHeadToHead).mockResolvedValue(played.slice(0, 2));
+      const service = new SportsService([provider]);
+
+      const result = await service.getGamePreview('mlb', {
+        teamA: 'PHI',
+        teamB: 'BOS',
+      });
+
+      expect(result.game).toMatchObject({ date: '2026-04-11' });
+      expect(result.notes.join(' ')).toMatch(/no games left/);
+    });
+
     it('measures team stats over the interval when both dates are given', async () => {
       const provider = buildProvider();
       const service = new SportsService([provider]);
 
-      await service.getTeamHeadToHead('mlb', {
+      await service.getGamePreview('mlb', {
         teamA: 'PHI',
         teamB: 'BOS',
         ...range,
@@ -296,7 +360,7 @@ describe('SportsService league data', () => {
       const provider = buildProvider();
       const service = new SportsService([provider]);
 
-      await service.getTeamHeadToHead('mlb', {
+      await service.getGamePreview('mlb', {
         teamA: 'PHI',
         teamB: 'BOS',
         startDate: range.startDate,
@@ -310,28 +374,28 @@ describe('SportsService league data', () => {
       vi.mocked(provider.getHeadToHead).mockResolvedValue([]);
       const service = new SportsService([provider]);
 
-      const result = await service.getTeamHeadToHead('mlb', {
+      const result = await service.getGamePreview('mlb', {
         teamA: 'PHI',
         teamB: 'BOS',
       });
 
       expect(result.series.played).toBe(0);
-      expect(result.note).toMatch(/no games against each other/);
+      expect(result.game).toBe(null);
     });
 
     it('lists the real abbreviations when one is wrong, and refuses a self-comparison', async () => {
       const service = new SportsService([buildProvider()]);
 
       await expect(
-        service.getTeamHeadToHead('mlb', { teamA: 'PHI', teamB: 'PHILLY' }),
+        service.getGamePreview('mlb', { teamA: 'PHI', teamB: 'PHILLY' }),
       ).rejects.toThrow(/BOS, PHI/);
       await expect(
-        service.getTeamHeadToHead('mlb', { teamA: 'PHI', teamB: 'phi' }),
+        service.getGamePreview('mlb', { teamA: 'PHI', teamB: 'phi' }),
       ).rejects.toThrow(BadRequestException);
     });
   });
 
-  it('says so when a sport has no schedule data instead of failing obscurely', async () => {
+  it('says so when a sport has no fixtures at all, rather than failing obscurely', async () => {
     const nfl: SportProvider = {
       key: 'nfl',
       getCatalog: vi.fn().mockResolvedValue(catalog),
@@ -340,6 +404,31 @@ describe('SportsService league data', () => {
     };
     const service = new SportsService([nfl]);
 
+    await expect(service.getSchedule('nfl', range)).rejects.toThrow(
+      /no fixture list/i,
+    );
+  });
+
+  /**
+   * A schedule is the narrower capability. A sport that has one but no team
+   * stats must still be turned away from the views built on them — and told
+   * which of the two it is missing.
+   */
+  it('separates missing team stats from a missing schedule', async () => {
+    const fixturesOnly = {
+      key: 'nfl' as const,
+      getCatalog: vi.fn().mockResolvedValue(catalog),
+      getStatLines: vi.fn().mockResolvedValue([]),
+      getGameLog: vi.fn(),
+      getSchedule: vi.fn().mockResolvedValue([]),
+      getHeadToHead: vi.fn().mockResolvedValue([]),
+      getTeamGames: vi.fn().mockResolvedValue([]),
+    };
+    const service = new SportsService([fixturesOnly]);
+
+    await expect(service.getSchedule('nfl', range)).resolves.toMatchObject({
+      games: [],
+    });
     await expect(service.getProbableStarters('nfl', range)).rejects.toThrow(
       /only wired up for mlb/,
     );

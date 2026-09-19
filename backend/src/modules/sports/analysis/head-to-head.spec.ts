@@ -24,6 +24,7 @@ const game = (
 ): ScheduledGame => ({
   gameId: `${date}-${home}`,
   date,
+  week: null,
   status: score ? 'Final' : 'Scheduled',
   home,
   away,
@@ -114,6 +115,7 @@ describe('teamSeries', () => {
       team: 'NYY',
       wins: 2,
       losses: 1,
+      ties: 0,
       scoredFor: 15,
       scoredAgainst: 13,
       homeWins: 1,

@@ -1,5 +1,6 @@
 import type {
   AVAILABILITY,
+  PREVIEW_STATS_SOURCES,
   START_CONFIDENCE,
   DATA_KINDS,
   FORM_TRENDS,
@@ -51,7 +52,9 @@ export interface ScoringPreset {
  * views that exist rather than hardcoding "this bit is baseball only".
  */
 export interface SportCapabilities {
-  /** Schedule, matchup ratings, projected starts, roster availability. */
+  /** Fixtures: the schedule, head-to-head meetings and game previews. */
+  schedule: boolean;
+  /** Matchup ratings, projected starts, roster availability — schedule and more. */
   leagueData: boolean;
   expectedPoints: boolean;
   playerDirectory: boolean;
@@ -184,6 +187,8 @@ export interface ProbableStarter {
 export interface ScheduledGame {
   gameId: string;
   date: string;
+  /** Fantasy week where the sport has one, null where a date is the only index. */
+  week: number | null;
   /** Upstream wording, e.g. "Scheduled", "In Progress", "Final". */
   status: string;
   home: string;
@@ -198,8 +203,14 @@ export interface DateRange {
   endDate: string;
 }
 
-export interface ScheduleQuery extends DateRange {
+/**
+ * A window over one season's fixtures. Dates and weeks are both optional
+ * because the two sports index games differently: the service sends a date
+ * range to a sport without weeks, and weeks to one that has them.
+ */
+export interface ScheduleQuery extends Partial<DateRange> {
   season: string;
+  weeks?: number[];
 }
 
 /** Every meeting between two teams, optionally narrowed to part of the season. */
@@ -267,14 +278,35 @@ export interface PlayerStatus {
 }
 
 /**
- * Optional provider capability: fixtures, team strength and roster availability.
- * A sport whose upstream has none of this simply doesn't implement it, and
- * SportsService reports that rather than pretending the data exists.
+ * Optional provider capability: the fixture list, and the meetings between any
+ * two teams. This is the narrow half of what LeagueDataProvider used to be —
+ * a sport whose upstream publishes a schedule but no team stats implements
+ * this alone rather than being forced to fake the rest.
  */
-export interface LeagueDataProvider extends SportProvider {
-  readonly matchupMetrics: Record<MatchupSide, MatchupMetric[]>;
+export interface ScheduleProvider extends SportProvider {
   getSchedule(query: ScheduleQuery): Promise<ScheduledGame[]>;
   getHeadToHead(query: HeadToHeadQuery): Promise<ScheduledGame[]>;
+  /**
+   * One team's whole season. Asked for separately rather than filtered out of
+   * getSchedule because a season-wide slate is thousands of games in baseball
+   * and upstream can narrow it to one club for the same single request.
+   */
+  getTeamGames(query: TeamGamesQuery): Promise<ScheduledGame[]>;
+}
+
+export interface TeamGamesQuery extends Partial<DateRange> {
+  season: string;
+  team: string;
+}
+
+/**
+ * Optional provider capability: team strength and roster availability, on top
+ * of the fixtures. A sport whose upstream has none of this simply doesn't
+ * implement it, and SportsService reports that rather than pretending the
+ * data exists.
+ */
+export interface LeagueDataProvider extends ScheduleProvider {
+  readonly matchupMetrics: Record<MatchupSide, MatchupMetric[]>;
   /** A date range measures the interval rather than the whole season to date. */
   getTeamStrength(season: string, range?: DateRange): Promise<TeamStrength[]>;
   getPlayerStatuses(season: string): Promise<PlayerStatus[]>;
@@ -361,6 +393,7 @@ export interface PlayerHeadToHead {
 export interface SeriesGame {
   gameId: string;
   date: string;
+  week: number | null;
   status: string;
   home: string;
   away: string;
@@ -373,6 +406,8 @@ export interface SeriesRecord {
   team: string;
   wins: number;
   losses: number;
+  /** Football draws. Left at zero by sports that cannot tie. */
+  ties: number;
   scoredFor: number;
   scoredAgainst: number;
   homeWins: number;
@@ -421,4 +456,68 @@ export interface ExpectedPointsLine {
   /** Which model produced the expectation, since positions are fit apart. */
   model: string;
   opportunities: StatValues;
+}
+
+/**
+ * Where a preview's team production was measured. The two are not the same
+ * number: `team` is upstream's own club line, `players` is the sum of that
+ * club's individual lines in one stat group, which omits anyone the group
+ * doesn't cover. Saying which is which keeps a reader from comparing across
+ * sports as though they were.
+ */
+export type PreviewStatsSource = ValueOf<typeof PREVIEW_STATS_SOURCES>;
+
+/** A team's won-lost line over a window, counted only from finished games. */
+export interface TeamRecord {
+  wins: number;
+  losses: number;
+  ties: number;
+  scoredFor: number;
+  scoredAgainst: number;
+}
+
+/** A team's leading fantasy scorer in the previewed window. */
+export interface PreviewLeader {
+  player: PlayerRef;
+  gamesPlayed: number;
+  fantasyPoints: number;
+  pointsPerGame: number;
+  stats: StatValues;
+}
+
+/** One side of a game preview. */
+export interface PreviewTeam {
+  team: string;
+  isHome: boolean;
+  record: TeamRecord;
+  /** Most recent results first, so "how are they going in" is the top of the list. */
+  recentGames: SeriesGame[];
+  gamesPlayed: number;
+  /** Production keyed by stat group, e.g. `{ hitting, pitching }` or `{ offense }`. */
+  stats: Record<string, StatValues>;
+  statsSource: PreviewStatsSource;
+  /** How good a matchup this team is *to face*, where the sport rates matchups. */
+  asOpponent?: Record<MatchupSide, MatchupRating | null>;
+  leaders: PreviewLeader[];
+  /** The announced starting pitcher for the previewed game, where there is one. */
+  probable?: ProbableStarter | null;
+}
+
+/**
+ * Two teams set against each other around one game. The game itself is the
+ * next meeting unless one was named, and is null when they have none left —
+ * which is a real answer about the fixture list, not a failure.
+ */
+export interface GamePreview {
+  sport: SportKey;
+  season: string;
+  startDate?: string;
+  endDate?: string;
+  group: string;
+  scoring: string;
+  game: SeriesGame | null;
+  teams: [PreviewTeam, PreviewTeam];
+  series: TeamSeries;
+  /** Anything the reader would otherwise have to infer, e.g. a missing capability. */
+  notes: string[];
 }

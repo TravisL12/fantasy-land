@@ -30,6 +30,7 @@ export interface ScoringPreset {
 
 /** Which optional datasets a sport's provider supports. */
 export interface SportCapabilities {
+  schedule: boolean;
   leagueData: boolean;
   expectedPoints: boolean;
   playerDirectory: boolean;
@@ -243,6 +244,7 @@ export interface ProbableStarter extends PlayerRef {
 export interface ScheduledGame {
   gameId: string;
   date: string;
+  week: number | null;
   status: string;
   home: string;
   away: string;
@@ -253,12 +255,19 @@ export interface ScheduledGame {
   score: { home: number; away: number } | null;
 }
 
+/** The window the schedule resolved to: dates, or weeks where a sport has them. */
 export interface ScheduleResponse {
   sport: SportKey;
   season: string;
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
+  weeks?: number[];
   games: ScheduledGame[];
+}
+
+/** A schedule is asked for by week where the sport has them, by date otherwise. */
+export interface ScheduleQuery extends DateWindowQuery {
+  weeks?: number[];
 }
 
 export interface ProjectedStart {
