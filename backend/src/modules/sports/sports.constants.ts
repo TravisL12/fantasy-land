@@ -5,6 +5,7 @@ export const SPORTS_ROUTES = {
   expectedPoints: ':sport/expected-points',
   players: ':sport/players',
   playerStats: ':sport/players/:playerId/stats',
+  playerSeasons: ':sport/players/:playerId/seasons',
   schedule: ':sport/schedule',
   preview: ':sport/preview',
   standings: ':sport/standings',
@@ -217,7 +218,18 @@ export const SPORTS_MESSAGES = {
     `Unknown scoring preset "${scoring}" — use one of: ${known.join(', ')}`,
   unsupportedKind: (kind: string) => `This sport does not support "${kind}"`,
   weeksUnsupported: 'This sport does not support weekly stats',
+  noWindowedStats: (sport: string) =>
+    `Leaderboards for "${sport}" cover a whole season only — its upstream publishes no partial-season pool.`,
+  windowKindUnsupported: (sport: string, kinds: readonly string[]) =>
+    `"${sport}" measures part of a season by ${kinds.join(' or ')}. Ask for a window in those terms.`,
+  unknownQualifierStat: (stat: string, keys: string[]) =>
+    `Cannot set a minimum on "${stat}" — use one of: ${keys.join(', ')}.`,
+  qualified: (stat: string, minimum: number, teamGames: number) =>
+    `Ranked among players with at least ${minimum} ${stat} — the league standard scaled to ${teamGames} team games. Pass minStat to set your own line, or minStatValue 0 to rank everyone.`,
   playerNotFound: 'Player not found',
+  unknownSeasons: (seasons: string[], known: string[]) =>
+    `No data for ${seasons.join(', ')} — this sport covers ${known.at(-1)} to ${known[0]}.`,
+  tooManySeasons: (max: number) => `Ask for at most ${max} seasons at a time`,
   noLeagueData: (sport: string) =>
     `No matchup or availability data for "${sport}" — this is only wired up for mlb so far`,
   noStandings: (sport: string) =>
@@ -237,11 +249,19 @@ export const SPORTS_MESSAGES = {
   unknownGame: (gameId: string) =>
     `No game "${gameId}" in this season's schedule for those teams.`,
   badDate: (value: string) => `"${value}" is not a YYYY-MM-DD date`,
-  unknownTeam: (team: string, teams: string[]) =>
-    `Unknown team "${team}" — use one of: ${teams.join(', ')}`,
+  /**
+   * Names the sport, not just the teams. A model that omitted `sport` gets the
+   * wrong league's club list back and reads it as "NYY is spelled oddly here",
+   * retrying with the full name instead of correcting the sport. Saying which
+   * league it is looking at is what breaks that loop.
+   */
+  unknownTeam: (team: string, sport: string, teams: string[]) =>
+    `Unknown ${sport} team "${team}". Valid ${sport} teams: ${teams.join(', ')}. If you meant a different sport, pass the "sport" argument.`,
   sameTeam: 'Give two different teams to compare',
   noDatesInLog:
     'This sport\'s game log has no dates, so the date window was ignored — filter by week instead.',
+  venueUnknown:
+    "This sport's game log does not say which side was at home, so the venue filter was ignored.",
   noGamesInWindow:
     'No games fall inside that window — widen it or drop the filters.',
   neverMet: 'These teams have no games against each other in that window.',
@@ -256,6 +276,25 @@ export const SPORTS_MESSAGES = {
   endBeforeStart: 'endDate must not be before startDate',
   rangeTooLong: (max: number) => `Ask for at most ${max} days at a time`,
 } as const;
+
+/**
+ * How many seasons one request may span. The warm-up holds ten, so that is what
+ * can be answered from cache; more than that is a research project, not a
+ * question, and every season is a row in the model's context window.
+ */
+export const PLAYER_SEASONS_LIMIT = { default: 5, max: 10 } as const;
+
+/**
+ * Where an availability answer came from. A club's own roster and the league
+ * directory are different populations, and a reader weighs them differently.
+ */
+export const PLAYER_STATUS_SOURCES = {
+  roster: 'roster',
+  directory: 'directory',
+} as const;
+
+/** Which side of a fixture a game was played on. */
+export const VENUES = { home: 'home', away: 'away' } as const;
 
 export const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 

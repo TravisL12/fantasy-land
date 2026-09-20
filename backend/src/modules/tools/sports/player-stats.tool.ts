@@ -1,10 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { analyzeForm } from '../../sports/analysis/form.js';
 import { SportsService } from '../../sports/sports.service.js';
-import { FORM_DEFAULTS } from '../../sports/sports.constants.js';
+import {
+  FORM_DEFAULTS,
+  PLAYER_SEASONS_LIMIT,
+} from '../../sports/sports.constants.js';
 import type {
   PointsSummary,
   ScoredGameLogEntry,
+  SportKey,
   StatGroup,
 } from '../../sports/sports.types.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
@@ -15,8 +19,10 @@ import type {
 } from '../tools.types.js';
 import {
   asLimit,
+  asNumber,
   asSport,
   asString,
+  asVenue,
   asStringArray,
   pickStats,
   requireString,
@@ -28,6 +34,7 @@ import {
   GAME_LOG_LIMIT,
   GROUP_PARAM,
   PLAYER_ID_PARAM,
+  WINDOW_PARAMS,
   PLAYER_STATS_SECTIONS,
   SCORING_PARAM,
   SEASON_PARAM,
@@ -52,20 +59,32 @@ export class PlayerStatsTool implements FantasyTool {
     name: 'get_player_stats',
     source: LOCAL_TOOL_SOURCE,
     description:
-      "One player's season: totals, fantasy points and consistency (floor, ceiling, median, volatility). Add include:[\"games\"] for the game-by-game log behind a trend question, and include:[\"form\"] to measure their recent games against their own season for hot/cold, buy-low and sell-high calls. Call find_player first to get the id.",
+      "One player's season: totals, fantasy points and consistency (floor, ceiling, median, volatility). Add include:[\"games\"] for the game-by-game log behind a trend question, and include:[\"form\"] to measure their recent games against their own season for hot/cold, buy-low and sell-high calls. Pass `seasons` instead of `season` for a year-by-year career view — that is the answer to \"how has he trended\", \"is he declining\" and \"career high\". Pass `venue` or `opponent` for a split: home/away, or how they do against one team. Add include:[\"context\"] for where they rank within their position — use it whenever the question is whether a number is actually good. Call find_player first to get the id.",
     parameters: {
       type: 'object',
       properties: {
         sport: SPORT_PARAM,
         playerId: PLAYER_ID_PARAM,
         season: SEASON_PARAM,
+        seasons: {
+          type: 'array',
+          items: { type: 'string' },
+          description: `Several four-digit seasons, e.g. ["2026","2025","2024"], for a year-by-year view newest first (max ${PLAYER_SEASONS_LIMIT.max}). Returns one line per season instead of a game log — "include" and "lastN" do not apply.`,
+        },
         scoring: SCORING_PARAM,
         include: {
           type: 'array',
           items: { type: 'string', enum: Object.values(PLAYER_STATS_SECTIONS) },
-          description: `What to return. Defaults to ["${PLAYER_STATS_SECTIONS.totals}"]. Ask for extra sections only when the question needs them.`,
+          description: `What to return, defaulting to ["${PLAYER_STATS_SECTIONS.totals}"]. "${PLAYER_STATS_SECTIONS.totals}" is season totals, fantasy points and consistency. "${PLAYER_STATS_SECTIONS.games}" is the game-by-game log. "${PLAYER_STATS_SECTIONS.form}" measures their recent games against their own season. **"${PLAYER_STATS_SECTIONS.context}" is their rank and percentile within their position — ask for it for "where does he rank", "is that good", "top 10 at his position" and anything else needing a number placed against his peers, rather than fetching a leaderboard and counting.** Ask for extra sections only when the question needs them.`,
         },
         stats: STATS_PARAM,
+        replacementRank: {
+          type: 'integer',
+          description:
+            'With "context", the rank that counts as replacement level in the user\'s league, e.g. 24 for the 24th running back in a 12-team league that starts two. Omit unless the league size is known — there is no safe default.',
+        },
+        venue: WINDOW_PARAMS.venue,
+        opponent: WINDOW_PARAMS.opponent,
         lastN: {
           type: 'integer',
           description: `With "games", how many recent games to return (default ${GAME_LOG_LIMIT.default}, max ${GAME_LOG_LIMIT.max}). With "form", how many games count as recent (default ${FORM_WINDOW_LIMIT.default}).`,
@@ -82,14 +101,35 @@ export class PlayerStatsTool implements FantasyTool {
     const sport = asSport(args.sport);
     const playerId = requireString(args, 'playerId');
     const sections = this.sections(args.include);
+    const venue = asVenue(args.venue);
+    const opponent = asString(args.opponent);
     const query = {
       season: asString(args.season),
       group: asString(args.group),
       scoring: asString(args.scoring),
+      // A split narrows totals, consistency and the log alike — see
+      // getPlayerStats. lastN stays a presentation cap on the games section.
+      ...((venue || opponent) && { window: { venue, opponent } }),
     };
+
+    const seasons = asStringArray(args.seasons);
+    if (seasons.length > 0) {
+      return this.career(sport, playerId, seasons, query, args, context);
+    }
 
     const { player, season, scoring, group, entries, totals, summary } =
       await this.sports.getPlayerStats(sport, playerId, query);
+
+    // A second read of the same cached pool, and only when asked: it is what
+    // turns a total into "good for the position" instead of just a number.
+    const positionContext = sections.has(PLAYER_STATS_SECTIONS.context)
+      ? await this.sports.getPlayerContext(sport, playerId, {
+          season,
+          group,
+          scoring,
+          replacementRank: asNumber(args.replacementRank),
+        })
+      : null;
 
     const statGroup = await this.group(sport, group);
     const keys = resolveStatKeys(statGroup, args.stats, { full: context?.full });
@@ -133,6 +173,53 @@ export class PlayerStatsTool implements FantasyTool {
         // The form engine is pure, so it runs on the log already in hand
         // rather than asking the service for the same season a second time.
         form: this.form(entries, statGroup, args, keys),
+      }),
+      ...(positionContext && { context: positionContext }),
+    };
+  }
+
+  /**
+   * A year-by-year line per season. Deliberately narrower than the single
+   * season view: a trajectory is read from totals and points per game, and
+   * repeating each season's floor, ceiling and volatility would cost more
+   * context than the question it answers.
+   */
+  private async career(
+    sport: SportKey,
+    playerId: string,
+    seasons: string[],
+    query: { group?: string; scoring?: string },
+    args: Record<string, unknown>,
+    context?: ToolContext,
+  ) {
+    const result = await this.sports.getPlayerSeasons(
+      sport,
+      playerId,
+      seasons,
+      query,
+    );
+    const statGroup = await this.group(sport, result.group);
+    const keys = resolveStatKeys(statGroup, args.stats, { full: context?.full });
+
+    return {
+      sport,
+      scoring: result.scoring,
+      group: result.group,
+      player: result.player,
+      seasons: result.seasons.map(
+        ({ season, gamesPlayed, fantasyPoints, pointsPerGame, totals, summary }) => ({
+          season,
+          gamesPlayed,
+          fantasyPoints,
+          pointsPerGame,
+          totals: pickStats(totals, keys),
+          ...(context?.full && { consistency: summary }),
+        }),
+      ),
+      // Said out loud: a season missing from the table is a season the player
+      // has no record in, not one we failed to fetch.
+      ...(result.missing.length > 0 && {
+        notPlayed: result.missing,
       }),
     };
   }

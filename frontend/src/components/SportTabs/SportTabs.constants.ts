@@ -36,6 +36,8 @@ export const SPORT_TABS: SportTab[] = [
   {
     segment: SPORT_VIEW_SEGMENTS.availability,
     label: 'Availability',
-    requires: 'leagueData',
+    // Not leagueData: football answers this from the player directory, so
+    // gating it on a roster provider hid a view that works.
+    requires: 'availability',
   },
 ];

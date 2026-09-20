@@ -3,6 +3,7 @@ import {
   COMPUTED_SORT_KEYS,
   DATE_PATTERN,
   EXPECTED_SORT_KEYS,
+  PLAYER_SEASONS_LIMIT,
   SCHEDULE_DEFAULTS,
   SORT_ORDERS,
   SPORTS_MESSAGES,
@@ -23,6 +24,8 @@ import type {
   StandingsProvider,
   StatDefinition,
   StatGroup,
+  StatWindow,
+  WindowedStatsProvider,
 } from './sports.types.js';
 
 /**
@@ -53,6 +56,62 @@ export const providesStandings = capability<StandingsProvider>('getStandings');
 export const providesPlayerDirectory =
   capability<PlayerDirectoryProvider>('getPlayerDirectory');
 
+/**
+ * The seasons a multi-season request resolves to, newest first.
+ *
+ * A season the sport has no data for is rejected by name rather than silently
+ * dropped: a career view quietly missing 2019 reads as a player who did not
+ * play that year, which is a different claim entirely.
+ */
+export const resolveSeasons = (
+  catalog: SportCatalog,
+  seasons: string[],
+): string[] => {
+  const wanted = [...new Set(seasons)].sort((a, b) => b.localeCompare(a));
+  if (wanted.length === 0) return [catalog.defaultSeason];
+  if (wanted.length > PLAYER_SEASONS_LIMIT.max) {
+    throw new BadRequestException(
+      SPORTS_MESSAGES.tooManySeasons(PLAYER_SEASONS_LIMIT.max),
+    );
+  }
+
+  const unknown = wanted.filter((season) => !catalog.seasons.includes(season));
+  if (unknown.length > 0) {
+    throw new BadRequestException(
+      SPORTS_MESSAGES.unknownSeasons(unknown, catalog.seasons),
+    );
+  }
+  return wanted;
+};
+
+/**
+ * The window a stats query asked for, or undefined when it asked for a whole
+ * season. Dates and weeks are rejected together for the same reason the
+ * schedule rejects them: each would filter the other, and the caller would not
+ * be told which one won.
+ */
+export const statWindowOf = (query: {
+  startDate?: string;
+  endDate?: string;
+  weeks?: number[];
+}): StatWindow | undefined => {
+  const hasDates = Boolean(query.startDate || query.endDate);
+  const hasWeeks = Boolean(query.weeks?.length);
+
+  if (hasDates && hasWeeks) {
+    throw new BadRequestException(SPORTS_MESSAGES.scheduleNeedsWindow);
+  }
+  if (!hasDates && !hasWeeks) return undefined;
+
+  return hasWeeks
+    ? { weeks: query.weeks }
+    : { startDate: query.startDate, endDate: query.endDate };
+};
+
+/** Narrows a provider to the optional part-of-a-season leaderboard. */
+export const providesWindowedStats =
+  capability<WindowedStatsProvider>('getWindowedStatLines');
+
 /** Narrows a provider to the optional expected-points capability. */
 export const providesOpportunityStats =
   capability<OpportunityProvider>('opportunityStats');
@@ -71,6 +130,12 @@ const CAPABILITY_GUARDS: Record<
   leagueData: providesLeagueData,
   expectedPoints: providesOpportunityStats,
   playerDirectory: providesPlayerDirectory,
+  windowedStats: providesWindowedStats,
+  // Two sources answer this one: a real roster where the league publishes one,
+  // the player directory everywhere else. A client only needs to know that an
+  // answer exists.
+  availability: (provider) =>
+    providesLeagueData(provider) || providesPlayerDirectory(provider),
 };
 
 /** Which optional capabilities one provider actually implements. */
@@ -304,13 +369,19 @@ export const resolveScoring = (catalog: SportCatalog, key?: string) => {
   return preset;
 };
 
-/** Abbreviations are case-insensitive, and a wrong one lists the valid ones. */
-export const resolveTeam = (team: string, known: string[]) => {
+/**
+ * Abbreviations are case-insensitive, and a wrong one lists the valid ones —
+ * under the sport it is listing them for, so a caller who reached the wrong
+ * league is told that rather than left to guess at spelling.
+ */
+export const resolveTeam = (team: string, sport: string, known: string[]) => {
   const match = known.find(
     (candidate) => candidate.toUpperCase() === team.trim().toUpperCase(),
   );
   if (!match) {
-    throw new BadRequestException(SPORTS_MESSAGES.unknownTeam(team, known));
+    throw new BadRequestException(
+      SPORTS_MESSAGES.unknownTeam(team, sport, known),
+    );
   }
   return match;
 };

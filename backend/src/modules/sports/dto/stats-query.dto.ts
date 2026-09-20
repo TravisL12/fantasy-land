@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -11,6 +12,7 @@ import {
 } from 'class-validator';
 import {
   DATA_KINDS,
+  DATE_PATTERN,
   MAX_WEEK,
   SEARCH_MAX_LENGTH,
   SORT_KEY_PATTERN,
@@ -54,6 +56,37 @@ export class StatsQueryDto extends ScoredSeasonQueryDto {
   @IsInt()
   @Min(0)
   minGames: number = STATS_QUERY_DEFAULTS.minGames;
+
+  /** Window: dates for sports measured in dates, weeks for sports with weeks. */
+  @IsOptional()
+  @Matches(DATE_PATTERN)
+  startDate?: string;
+
+  @IsOptional()
+  @Matches(DATE_PATTERN)
+  endDate?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @Max(MAX_WEEK, { each: true })
+  weeks?: number[];
+
+  /**
+   * Rank only players with at least `minStatValue` of this stat. Overrides the
+   * stat's own qualifier, so a caller can widen or narrow the field the league
+   * standard would set.
+   */
+  @IsOptional()
+  @Matches(SORT_KEY_PATTERN)
+  minStat?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minStatValue?: number;
 
   @IsOptional()
   @Type(() => Number)

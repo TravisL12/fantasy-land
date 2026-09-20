@@ -1,8 +1,10 @@
 import {
+  AVAILABILITY,
   FORM_DEFAULTS,
   PREVIEW_DEFAULTS,
   SCHEDULE_DEFAULTS,
   SPORT_KEYS,
+  VENUES,
   WINDOW_DEFAULTS,
 } from '../../sports/sports.constants.js';
 
@@ -20,7 +22,7 @@ export const SEASON_PARAM = {
 export const SCORING_PARAM = {
   type: 'string',
   description:
-    'Scoring preset key, e.g. "ppr" or "std". Defaults to the sport\'s first preset.',
+    'Scoring preset key. Each sport has its own — "ppr", "half_ppr" and "std" are the NFL ones, and other sports do not share them. Leave it out to use the sport\'s default, or call get_sport_catalog for its keys. There is no universal "standard".',
 } as const;
 
 export const PLAYER_ID_PARAM = {
@@ -38,6 +40,19 @@ export const GROUP_PARAM = {
  * The stat filter every stats-returning tool shares. Without it a row carries
  * all twenty-odd stats in its group, most of which the question never touches.
  */
+export const TEAM_PARAM = {
+  type: 'string',
+  description: 'Filter to one team abbreviation, e.g. "NYY".',
+} as const;
+
+export const AVAILABILITY_PARAM = {
+  type: 'array',
+  items: { type: 'string', enum: Object.values(AVAILABILITY) },
+  description: `Which to include. Defaults to ${AVAILABILITY.injured} and ${AVAILABILITY.inactive} — players who cannot play right now.`,
+} as const;
+
+export const STATUS_LIMIT = { default: 25, max: 100 } as const;
+
 export const STATS_PARAM = {
   type: 'array',
   items: { type: 'string' },
@@ -65,7 +80,18 @@ export const WINDOW_PARAMS = {
   },
   lastN: {
     type: 'integer',
-    description: `Only the most recent N games, applied after the date and week filters (max ${WINDOW_DEFAULTS.maxLastN}).`,
+    description: `Only the most recent N games, applied after the other filters (max ${WINDOW_DEFAULTS.maxLastN}).`,
+  },
+  venue: {
+    type: 'string',
+    enum: Object.values(VENUES),
+    description:
+      'Only home games or only away games. Omit for both. This is the "at home vs on the road" split.',
+  },
+  opponent: {
+    type: 'string',
+    description:
+      'Only games against this team abbreviation, e.g. "KC" — how a player has done against one opponent.',
   },
 } as const;
 
@@ -74,6 +100,7 @@ export const PLAYER_STATS_SECTIONS = {
   totals: 'totals',
   games: 'games',
   form: 'form',
+  context: 'context',
 } as const;
 
 export const DEFAULT_PLAYER_STATS_SECTIONS = [PLAYER_STATS_SECTIONS.totals];
@@ -93,6 +120,7 @@ export const FORM_WINDOW_LIMIT = {
 export const COMPARE_MAX_PLAYERS = 4;
 
 export const SPORTS_TOOL_MESSAGES = {
+  noStatuses: 'No players matched those filters',
   noMatches: (query: string) => `No players matched "${query}"`,
   tooManyPlayers: `Compare at most ${COMPARE_MAX_PLAYERS} players at once`,
   needTwoPlayers: 'Give at least two player ids to compare',

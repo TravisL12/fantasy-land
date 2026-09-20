@@ -26,8 +26,8 @@ import {
   END_DATE_PARAM,
   STARTS_LIMIT,
   START_DATE_PARAM,
-  TEAM_PARAM,
 } from './baseball-tools.constants.js';
+import { TEAM_PARAM } from '../sports/sports-tools.constants.js';
 
 /**
  * Every "who is pitching, and when" question.
@@ -43,7 +43,7 @@ export class PitcherStartsTool implements FantasyTool {
     name: 'get_pitcher_starts',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Starting pitchers over a date range, grouped by pitcher, each start rated against the lineup it faces. Use it for "who is pitching tonight" (a one-day range, or confirmedOnly), streaming, and two-start weeks (minStarts 2). Each start is "confirmed" (announced by the league) or "projected" (inferred from the pitcher\'s rest pattern) — pass that distinction on and never state a projected start as fact. Pass playerIds when the question names pitchers; without them only pitchers with an announced start are covered, as coverageNote explains. Compare pitchers on matchupScore, the mean 0-100 matchup across the window.',
+      'Baseball starting pitchers over a date range, grouped by pitcher, each start rated against the lineup it faces. **Baseball only, and only pitchers** — it has nothing to say about who starts at a position in any other sport, so "starting quarterback", "starting lineup" and "who is starting at X" are not this tool. Use it for "who is pitching tonight" (a one-day range, or confirmedOnly), streaming, and two-start weeks (minStarts 2). Each start is "confirmed" (announced by the league) or "projected" (inferred from the pitcher\'s rest pattern) — pass that distinction on and never state a projected start as fact. Pass playerIds when the question names pitchers; without them only pitchers with an announced start are covered, as coverageNote explains. Compare pitchers on matchupScore, the mean 0-100 matchup across the window.',
     parameters: {
       type: 'object',
       properties: {

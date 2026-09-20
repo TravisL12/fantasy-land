@@ -56,6 +56,11 @@ export const SportStatsPage = () => {
         </StatusMessage>
       ) : (
         <>
+          {data?.note && (
+            <StatusMessage variant={STATUS_VARIANTS.info}>
+              {data.note}
+            </StatusMessage>
+          )}
           <StatsTable
             sport={catalog.key}
             filters={filters}

@@ -7,7 +7,9 @@ import type {
   FORM_TRENDS,
   MATCHUP_GRADES,
   MATCHUP_SIDES,
+  PLAYER_STATUS_SOURCES,
   SORT_ORDERS,
+  VENUES,
   SPORT_KEYS,
   STAT_FORMATS,
 } from './sports.constants.js';
@@ -29,6 +31,20 @@ export interface StatDefinition {
   /** Whether per-game values can be added up into a total (false for rates like AVG). */
   summable: boolean;
   lowerIsBetter?: boolean;
+  /**
+   * What makes this stat's ranking meaningful: at least `perTeamGame` of
+   * `stat` for every game the team played. Only rate stats carry one — a
+   * leaderboard by batting average with no qualifier is led by whoever went
+   * 1-for-1 in April.
+   */
+  qualifier?: StatQualifier;
+}
+
+export interface StatQualifier {
+  /** The counting stat the threshold is measured in, e.g. plateAppearances. */
+  stat: string;
+  /** How many of it per team game, e.g. 3.1 for the MLB batting title. */
+  perTeamGame: number;
 }
 
 export interface StatGroup {
@@ -61,6 +77,10 @@ export interface SportCapabilities {
   leagueData: boolean;
   expectedPoints: boolean;
   playerDirectory: boolean;
+  /** Leaderboards over part of a season rather than the whole of it. */
+  windowedStats: boolean;
+  /** Who is fit to play, from a roster or from the league directory. */
+  availability: boolean;
 }
 
 export interface SportCatalog {
@@ -165,6 +185,44 @@ export interface PlayerDirectoryProvider extends SportProvider {
 }
 
 /**
+ * How a sport can be asked for part of a season. Football is discussed in
+ * weeks and baseball in dates, and neither translates cleanly into the other —
+ * an NFL week spans four days, and a date range in baseball does not align to
+ * anything. So a provider says which it serves rather than a shared window
+ * shape leaking the wrong one into both.
+ */
+export const STAT_WINDOW_KINDS = { dates: 'dates', weeks: 'weeks' } as const;
+export type StatWindowKind = ValueOf<typeof STAT_WINDOW_KINDS>;
+
+/** Part of a season: dates or weeks, never both — the two would filter each other. */
+export interface StatWindow {
+  startDate?: string;
+  endDate?: string;
+  weeks?: number[];
+}
+
+export interface WindowedStatsQuery extends StatLinesQuery {
+  window: StatWindow;
+}
+
+/**
+ * Optional provider capability: stat lines for the whole player pool over part
+ * of a season, which is what "the best receivers over the last four weeks"
+ * needs and a season aggregate cannot answer.
+ *
+ * It is a capability rather than an argument on getStatLines because the two
+ * sports serve it by completely different means: baseball asks upstream for a
+ * date range in one request, football sums the weekly payloads it already has
+ * cached. A sport that can do neither says so instead of fanning out into one
+ * request per player.
+ */
+export interface WindowedStatsProvider extends SportProvider {
+  /** Which window shapes this sport accepts. */
+  readonly windowKinds: readonly StatWindowKind[];
+  getWindowedStatLines(query: WindowedStatsQuery): Promise<StatLine[]>;
+}
+
+/**
  * Optional provider capability: which stats count as *opportunities* for each
  * stat group, so the expected-points engine can be fit without knowing a thing
  * about the sport. A provider whose upstream does not publish opportunity
@@ -174,7 +232,9 @@ export interface OpportunityProvider extends SportProvider {
   readonly opportunityStats: Record<string, string[]>;
 }
 
+export type Venue = ValueOf<typeof VENUES>;
 export type Availability = ValueOf<typeof AVAILABILITY>;
+export type PlayerStatusSource = ValueOf<typeof PLAYER_STATUS_SOURCES>;
 export type MatchupSide = ValueOf<typeof MATCHUP_SIDES>;
 export type MatchupGrade = ValueOf<typeof MATCHUP_GRADES>;
 export type FormTrend = ValueOf<typeof FORM_TRENDS>;
@@ -365,6 +425,14 @@ export interface GameWindow {
   endDate?: string;
   weeks?: number[];
   lastN?: number;
+  /**
+   * Home games, away games, or both. A split over an attribute of the fixture
+   * rather than of the calendar — the log already carries it, so this costs a
+   * filter rather than a fetch.
+   */
+  venue?: Venue;
+  /** Only games against this team, by abbreviation. */
+  opponent?: string;
 }
 
 /** One player's production over a window, on a named scoring preset. */

@@ -16,6 +16,7 @@ import type {
 import {
   asLimit,
   asNumber,
+  asNumberArray,
   asSport,
   asString,
   pickStats,
@@ -38,7 +39,7 @@ export class LeaderboardTool implements FantasyTool {
     name: 'get_leaderboard',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Rank players by fantasy points or any stat, filtered by position, week and stat group. Use this for "best/top players" questions. Rows come back already ranked — report them in the order given. Call get_sport_catalog if you need the valid group, position, stat or scoring keys.',
+      'Rank players by fantasy points or any stat, filtered by position, stat group and a window. Use this for "best/top players" questions, over a whole season or over part of one ("the last four weeks", "since the All-Star break"). Rows come back already ranked — report them in the order given. Call get_sport_catalog if you need the valid group, position, stat or scoring keys.',
     parameters: {
       type: 'object',
       properties: {
@@ -47,7 +48,22 @@ export class LeaderboardTool implements FantasyTool {
         scoring: SCORING_PARAM,
         week: {
           type: 'integer',
-          description: 'A single week. Omit for season totals.',
+          description: 'A single week on its own. Omit for season totals.',
+        },
+        weeks: {
+          type: 'array',
+          items: { type: 'integer' },
+          description:
+            'Rank over these weeks added together, e.g. [5,6,7,8] for the last four. Sports with weeks only (nfl); use dates for mlb.',
+        },
+        startDate: {
+          type: 'string',
+          description:
+            'Rank over games on or after this date (YYYY-MM-DD). Sports measured in dates only (mlb); use weeks for nfl.',
+        },
+        endDate: {
+          type: 'string',
+          description: 'Rank over games on or before this date (YYYY-MM-DD).',
         },
         group: GROUP_PARAM,
         position: {
@@ -67,6 +83,15 @@ export class LeaderboardTool implements FantasyTool {
         minGames: {
           type: 'integer',
           description: 'Ignore players below this many games played.',
+        },
+        minStat: {
+          type: 'string',
+          description:
+            'Rank only players with at least minStatValue of this stat, e.g. "plateAppearances". Rate stats already apply the league standard — pass this only to set your own line.',
+        },
+        minStatValue: {
+          type: 'number',
+          description: 'The threshold for minStat. 0 ranks everyone.',
         },
         stats: STATS_PARAM,
         limit: {
@@ -104,6 +129,11 @@ export class LeaderboardTool implements FantasyTool {
         sort,
         order: asString(args.order) ?? SORT_ORDERS.desc,
         minGames: asNumber(args.minGames) ?? 0,
+        startDate: asString(args.startDate),
+        endDate: asString(args.endDate),
+        weeks: asNumberArray(args.weeks),
+        minStat: asString(args.minStat),
+        minStatValue: asNumber(args.minStatValue),
         limit: asLimit(args.limit, LEADERBOARD_LIMIT),
       }),
     );

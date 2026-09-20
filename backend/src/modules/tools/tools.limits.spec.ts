@@ -12,7 +12,6 @@ import type { StatGroup } from '../sports/sports.types.js';
 import {
   MATCHUP_LIMIT,
   STARTS_LIMIT,
-  STATUS_LIMIT,
 } from './baseball/baseball-tools.constants.js';
 import {
   EXPECTED_POINTS_LIMIT,
@@ -22,6 +21,7 @@ import {
   FIND_PLAYER_LIMIT,
   LEADERBOARD_LIMIT,
   SCHEDULE_LIMIT,
+  STATUS_LIMIT,
 } from './sports/sports-tools.constants.js';
 import type { ToolLimit } from './tools.types.js';
 

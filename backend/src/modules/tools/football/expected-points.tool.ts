@@ -38,7 +38,7 @@ export class ExpectedPointsTool implements FantasyTool {
     name: 'get_expected_points',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Expected fantasy points from opportunity, beside what players actually scored. Use for "is he for real / due to regress / getting unlucky" questions, and for usage-based rankings that ignore touchdown luck. NFL only. `delta` is actual minus expected: positive means outscoring the chances, negative means the volume has not paid off yet.',
+      'Luck and sustainability: expected fantasy points from a player\'s opportunities, beside what they actually scored. **This is the only tool that answers whether production is real, lucky, unlucky, sustainable or due to regress** — a stat line shows what happened, not whether it should have. Also gives usage-based rankings that ignore touchdown luck. Pass `playerIds` to ask about named players, or `position` for a board. NFL only. `delta` is actual minus expected. **Positive = scoring above the opportunities, so this is the player "due to regress" — sort by delta descending. Negative = the volume has not paid off yet, so this is the player "due for positive regression" or "getting unlucky" — sort ascending.** Pass `position` when the question names one, or you will rank the whole league and have to filter it yourself.',
     parameters: {
       type: 'object',
       properties: {

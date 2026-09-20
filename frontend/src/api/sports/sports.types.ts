@@ -35,6 +35,10 @@ export interface SportCapabilities {
   leagueData: boolean;
   expectedPoints: boolean;
   playerDirectory: boolean;
+  /** Leaderboards over part of a season rather than the whole of it. */
+  windowedStats: boolean;
+  /** Who is fit to play, from a roster or from the league directory. */
+  availability: boolean;
 }
 
 export interface SportCatalog {
@@ -85,15 +89,26 @@ export interface StatsQuery {
   offset?: number;
 }
 
+/** Part of a season: dates for sports measured in dates, weeks for the rest. */
+export interface StatWindow {
+  startDate?: string;
+  endDate?: string;
+  weeks?: number[];
+}
+
 export interface StatsResponse {
   sport: SportKey;
   season: string;
   week: number | null;
+  /** The part of the season measured, or null for the whole of it. */
+  window: StatWindow | null;
   group: string;
   kind: DataKind;
   scoring: string;
   total: number;
   rows: StatLeaderRow[];
+  /** Set when the field was narrowed, e.g. to qualified hitters. */
+  note?: string;
 }
 
 export interface GameLogEntry {

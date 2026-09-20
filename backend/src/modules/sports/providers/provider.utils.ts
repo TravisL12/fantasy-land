@@ -4,6 +4,7 @@ import type {
   SportKey,
   StatDefinition,
   StatFormat,
+  StatQualifier,
   StatGroup,
   StatValues,
 } from '../sports.types.js';
@@ -40,6 +41,7 @@ export const defineStat = (
     summable?: boolean;
     lowerIsBetter?: boolean;
     aliases?: readonly string[];
+    qualifier?: StatQualifier;
   } = {},
 ): StatDefinition => ({
   key,
@@ -49,6 +51,7 @@ export const defineStat = (
   summable: options.summable ?? format === STAT_FORMATS.int,
   ...(options.lowerIsBetter && { lowerIsBetter: true }),
   ...(options.aliases && { aliases: options.aliases }),
+  ...(options.qualifier && { qualifier: options.qualifier }),
 });
 
 /** Newest first, e.g. seasonRange(2024, 2026) → ['2026', '2025', '2024']. */

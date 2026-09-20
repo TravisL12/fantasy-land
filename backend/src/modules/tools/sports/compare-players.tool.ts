@@ -13,6 +13,7 @@ import {
   asNumberArray,
   asSport,
   asString,
+  asVenue,
   asStringArray,
   clamp,
   pickStats,
@@ -77,6 +78,8 @@ export class ComparePlayersTool implements FantasyTool {
       lastN: lastN
         ? clamp(lastN, WINDOW_DEFAULTS.minLastN, WINDOW_DEFAULTS.maxLastN)
         : undefined,
+      venue: asVenue(args.venue),
+      opponent: asString(args.opponent),
     };
 
     const sport = asSport(args.sport);

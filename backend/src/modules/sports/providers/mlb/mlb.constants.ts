@@ -11,6 +11,7 @@ import type {
   MatchupSide,
   ScoringPreset,
   StatGroup,
+  StatQualifier,
 } from '../../sports.types.js';
 import { defineStat } from '../provider.utils.js';
 
@@ -74,6 +75,20 @@ export const MLB_STAT_ALIASES = { strikeOuts: ['SO'] } as const;
 /** Stats the API doesn't return but we derive, e.g. singles for points scoring. */
 export const MLB_DERIVED_STATS = { singles: 'singles' } as const;
 
+/**
+ * The rulebook's own thresholds for a rate-stat title: 3.1 plate appearances
+ * and 1.0 inning pitched for every game the club played. Without them a
+ * leaderboard by average is led by a September call-up who went 2-for-3.
+ */
+const MLB_BATTING_QUALIFIER: StatQualifier = {
+  stat: 'plateAppearances',
+  perTeamGame: 3.1,
+};
+const MLB_PITCHING_QUALIFIER: StatQualifier = {
+  stat: 'inningsPitched',
+  perTeamGame: 1,
+};
+
 export const MLB_GROUPS: StatGroup[] = [
   {
     key: MLB_GROUP_KEYS.hitting,
@@ -100,11 +115,11 @@ export const MLB_GROUPS: StatGroup[] = [
       }),
       defineStat('hitByPitch', 'Hit by pitch', 'HBP'),
       defineStat('totalBases', 'Total bases', 'TB'),
-      defineStat('avg', 'Batting average', 'AVG', rate),
-      defineStat('obp', 'On-base %', 'OBP', rate),
-      defineStat('slg', 'Slugging %', 'SLG', rate),
-      defineStat('ops', 'OPS', 'OPS', rate),
-      defineStat('babip', 'BABIP', 'BABIP', rate),
+      defineStat('avg', 'Batting average', 'AVG', rate, { qualifier: MLB_BATTING_QUALIFIER }),
+      defineStat('obp', 'On-base %', 'OBP', rate, { qualifier: MLB_BATTING_QUALIFIER }),
+      defineStat('slg', 'Slugging %', 'SLG', rate, { qualifier: MLB_BATTING_QUALIFIER }),
+      defineStat('ops', 'OPS', 'OPS', rate, { qualifier: MLB_BATTING_QUALIFIER }),
+      defineStat('babip', 'BABIP', 'BABIP', rate, { qualifier: MLB_BATTING_QUALIFIER }),
     ],
     defaultStats: [
       'plateAppearances',
@@ -147,13 +162,24 @@ export const MLB_GROUPS: StatGroup[] = [
       defineStat('earnedRuns', 'Earned runs', 'ER', undefined, {
         lowerIsBetter: true,
       }),
-      defineStat('era', 'ERA', 'ERA', decimal, { lowerIsBetter: true }),
-      defineStat('whip', 'WHIP', 'WHIP', decimal, { lowerIsBetter: true }),
-      defineStat('strikeoutsPer9Inn', 'Strikeouts per 9', 'K/9', decimal),
+      defineStat('era', 'ERA', 'ERA', decimal, {
+        lowerIsBetter: true,
+        qualifier: MLB_PITCHING_QUALIFIER,
+      }),
+      defineStat('whip', 'WHIP', 'WHIP', decimal, {
+        lowerIsBetter: true,
+        qualifier: MLB_PITCHING_QUALIFIER,
+      }),
+      defineStat('strikeoutsPer9Inn', 'Strikeouts per 9', 'K/9', decimal, {
+        qualifier: MLB_PITCHING_QUALIFIER,
+      }),
       defineStat('walksPer9Inn', 'Walks per 9', 'BB/9', decimal, {
         lowerIsBetter: true,
+        qualifier: MLB_PITCHING_QUALIFIER,
       }),
-      defineStat('strikeoutWalkRatio', 'K/BB ratio', 'K/BB', decimal),
+      defineStat('strikeoutWalkRatio', 'K/BB ratio', 'K/BB', decimal, {
+        qualifier: MLB_PITCHING_QUALIFIER,
+      }),
     ],
     defaultStats: [
       'gamesStarted',

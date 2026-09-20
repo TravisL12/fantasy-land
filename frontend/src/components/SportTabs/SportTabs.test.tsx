@@ -15,6 +15,8 @@ const catalog = (
       leagueData: false,
       expectedPoints: false,
       playerDirectory: false,
+      windowedStats: false,
+      availability: false,
       ...capabilities,
     },
   }) as SportCatalog;
@@ -49,11 +51,33 @@ describe('SportTabs', () => {
 
   it('offers the league-data views together, since one capability covers them', () => {
     renderWithProviders(
-      <SportTabs catalog={catalog({ schedule: true, leagueData: true })} />,
+      <SportTabs
+        catalog={catalog({
+          schedule: true,
+          leagueData: true,
+          availability: true,
+        })}
+      />,
     );
 
     for (const label of ['Schedule', 'Starts', 'Matchups', 'Availability']) {
       expect(screen.getByRole('link', { name: label })).toBeVisible();
+    }
+  });
+
+  /**
+   * Availability has its own capability because two different sources answer
+   * it: a real roster where the league publishes one, the player directory
+   * everywhere else. Gating it on league data hid a view football can serve.
+   */
+  it('offers availability to a sport with only a player directory', () => {
+    renderWithProviders(
+      <SportTabs catalog={catalog({ playerDirectory: true, availability: true })} />,
+    );
+
+    expect(screen.getByRole('link', { name: 'Availability' })).toBeVisible();
+    for (const label of ['Starts', 'Matchups']) {
+      expect(screen.queryByRole('link', { name: label })).toBeNull();
     }
   });
 

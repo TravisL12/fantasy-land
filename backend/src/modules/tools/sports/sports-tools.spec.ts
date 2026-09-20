@@ -24,6 +24,7 @@ const statsResponse: StatsResponseDto = {
   sport: 'nfl',
   season: '2025',
   week: null,
+  window: null,
   group: 'offense',
   kind: 'stats',
   scoring: 'ppr',

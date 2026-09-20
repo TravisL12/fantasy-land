@@ -8,6 +8,7 @@ import { mean, round } from '../../common/math/number.js';
 import type { PlayerStatsQueryDto } from './dto/player-stats-query.dto.js';
 import type { StatsQueryDto } from './dto/stats-query.dto.js';
 import type {
+  PlayerSeasonsResponseDto,
   PlayerStatsResponseDto,
   StatsResponseDto,
 } from './dto/stats-response.dto.js';
@@ -31,6 +32,12 @@ import {
   type TeamSchedules,
 } from './analysis/starts.js';
 import { datesUnusable, sliceGames } from './analysis/window.js';
+import { leagueContext } from './analysis/context.js';
+import type { LeagueContext } from './analysis/context.js';
+import {
+  meetsQualifyingLine,
+  resolveQualifyingLine,
+} from './analysis/qualify.js';
 import {
   calculateFantasyPoints,
   perGame,
@@ -43,6 +50,7 @@ import {
   DIRECTORY_QUERY_DEFAULTS,
   EXPECTED_POINTS_DEFAULTS,
   MATCHUP_SIDES,
+  PLAYER_STATUS_SOURCES,
   PREVIEW_DEFAULTS,
   PREVIEW_STATS_SOURCES,
   SORT_ORDERS,
@@ -74,10 +82,14 @@ import type {
   SortOrder,
   SportKey,
   SportProvider,
+  PlayerStatus,
+  PlayerStatusSource,
   StartsReport,
   StandingsReport,
   TeamStrength,
+  WindowedStatsQuery,
 } from './sports.types.js';
+import { STAT_WINDOW_KINDS } from './sports.types.js';
 import {
   assertRange,
   capabilitiesOf,
@@ -90,6 +102,9 @@ import {
   providesStandings,
   providesPlayerDirectory,
   providesOpportunityStats,
+  providesWindowedStats,
+  resolveSeasons,
+  statWindowOf,
   resolveDateRange,
   resolveExpectedSort,
   resolveGroup,
@@ -153,6 +168,33 @@ export class SportsService {
    * needs the whole population, since pricing a target off one team's players
    * is not pricing it off the league.
    */
+  /**
+   * Part of a season for the whole player pool. Both sports serve it, by
+   * different means and in different terms, so the capability is checked and
+   * the window's shape is checked against what this sport actually measures in
+   * — asking baseball for weeks says so rather than quietly returning a season.
+   */
+  private async windowedLines(
+    sport: SportKey,
+    provider: SportProvider,
+    query: WindowedStatsQuery,
+  ) {
+    if (!providesWindowedStats(provider)) {
+      throw new BadRequestException(SPORTS_MESSAGES.noWindowedStats(sport));
+    }
+
+    const asked = query.window.weeks?.length
+      ? STAT_WINDOW_KINDS.weeks
+      : STAT_WINDOW_KINDS.dates;
+    if (!provider.windowKinds.includes(asked)) {
+      throw new BadRequestException(
+        SPORTS_MESSAGES.windowKindUnsupported(sport, provider.windowKinds),
+      );
+    }
+
+    return provider.getWindowedStatLines(query);
+  }
+
   private async scoreStatLines(
     sport: SportKey,
     query: {
@@ -161,6 +203,9 @@ export class SportsService {
       group?: string;
       scoring?: string;
       kind: DataKind;
+      startDate?: string;
+      endDate?: string;
+      weeks?: number[];
     },
   ) {
     const provider = this.provider(sport);
@@ -178,12 +223,20 @@ export class SportsService {
     }
 
     const season = query.season ?? catalog.defaultSeason;
-    const lines = await provider.getStatLines({
-      season,
-      week: query.week,
-      group: group.key,
-      kind: query.kind,
-    });
+    const statWindow = statWindowOf(query);
+    const lines = statWindow
+      ? await this.windowedLines(sport, provider, {
+          season,
+          group: group.key,
+          kind: query.kind,
+          window: statWindow,
+        })
+      : await provider.getStatLines({
+          season,
+          week: query.week,
+          group: group.key,
+          kind: query.kind,
+        });
     const rules = scoring.rules[group.key] ?? {};
 
     return {
@@ -191,6 +244,7 @@ export class SportsService {
       group,
       scoring,
       season,
+      window: statWindow,
       rows: lines.map((line): ScoredStatLine => {
         const fantasyPoints = calculateFantasyPoints(line.stats, rules);
         return {
@@ -206,42 +260,53 @@ export class SportsService {
     sport: SportKey,
     query: StatsQueryDto,
   ): Promise<StatsResponseDto> {
-    const { group, scoring, season, rows: scored } = await this.scoreStatLines(
-      sport,
-      query,
-    );
+    const {
+      group,
+      scoring,
+      season,
+      window: statWindow,
+      rows: scored,
+    } = await this.scoreStatLines(sport, query);
 
     const search = query.search?.trim().toLowerCase();
+    const sort = query.sort ?? COMPUTED_SORT_KEYS.fantasyPoints;
+    const qualifying = resolveQualifyingLine(group, sort, query, scored);
     const rows = scored
       .filter(
-        ({ player, gamesPlayed }) =>
-          (!query.position || player.position === query.position) &&
-          gamesPlayed >= query.minGames &&
-          (!search || player.name.toLowerCase().includes(search)),
+        (row) =>
+          (!query.position || row.player.position === query.position) &&
+          row.gamesPlayed >= query.minGames &&
+          (!search || row.player.name.toLowerCase().includes(search)) &&
+          (!qualifying || meetsQualifyingLine(row, qualifying)),
       )
-      .sort(
-        compareRows(
-          query.sort ?? COMPUTED_SORT_KEYS.fantasyPoints,
-          query.order,
-        ),
-      );
+      .sort(compareRows(sort, query.order));
 
     return {
       sport,
       season,
       week: query.week ?? null,
+      window: statWindow ?? null,
       group: group.key,
       kind: query.kind,
       scoring: scoring.key,
       total: rows.length,
       rows: rows.slice(query.offset, query.offset + query.limit),
+      // Said out loud, because a reader who is not told a field was narrowed
+      // will read it as the whole league.
+      ...(qualifying && {
+        note: SPORTS_MESSAGES.qualified(
+          qualifying.stat,
+          qualifying.minimum,
+          qualifying.teamGames,
+        ),
+      }),
     };
   }
 
   async getPlayerStats(
     sport: SportKey,
     playerId: string,
-    query: PlayerStatsQueryDto,
+    query: PlayerStatsQueryDto & { window?: GameWindow },
   ): Promise<PlayerStatsResponseDto> {
     const provider = this.provider(sport);
     const catalog = await provider.getCatalog();
@@ -260,10 +325,14 @@ export class SportsService {
 
     const group = resolveGroup(catalog, log.group);
     const rules = scoring.rules[group.key] ?? {};
-    const entries = log.entries.map((entry) => ({
+    const scored = log.entries.map((entry) => ({
       ...entry,
       fantasyPoints: calculateFantasyPoints(entry.stats, rules),
     }));
+    // The split narrows the whole answer, not only the game list: a home/away
+    // question wants home totals and a home floor, not the season's beside a
+    // filtered log.
+    const entries = query.window ? sliceGames(scored, query.window) : scored;
 
     return {
       sport,
@@ -278,6 +347,92 @@ export class SportsService {
       ),
       summary: summarizePoints(
         entries.map(({ fantasyPoints }) => fantasyPoints),
+      ),
+    };
+  }
+
+  /**
+   * Where a player sits in their position, so a total can be read as good or
+   * bad rather than just large.
+   *
+   * The pool is the same scored stat lines a leaderboard is built from, under
+   * the same season, group and scoring preset, so the comparison is drawn in
+   * the league the question is about. It is a cached read, not a second
+   * upstream call.
+   */
+  async getPlayerContext(
+    sport: SportKey,
+    playerId: string,
+    query: {
+      season?: string;
+      group?: string;
+      scoring?: string;
+      replacementRank?: number;
+    },
+  ): Promise<LeagueContext | null> {
+    const { rows } = await this.scoreStatLines(sport, {
+      ...query,
+      kind: DATA_KINDS.stats,
+    });
+    return leagueContext(rows, playerId, {
+      replacementRank: query.replacementRank,
+    });
+  }
+
+  /**
+   * One player across several seasons — the trajectory question, and the one
+   * the warm-up has already paid for.
+   *
+   * Each season is the same fetch getPlayerStats makes, and a finished season's
+   * cache never expires, so a career view costs one request per season the
+   * first time it is asked and none after. A season the player has no log for
+   * is reported as missing rather than failing the request: a three-year look
+   * at a second-year player should still answer for the two he played.
+   */
+  async getPlayerSeasons(
+    sport: SportKey,
+    playerId: string,
+    seasons: string[],
+    query: PlayerStatsQueryDto,
+  ): Promise<PlayerSeasonsResponseDto> {
+    const catalog = await this.provider(sport).getCatalog();
+    const wanted = resolveSeasons(catalog, seasons);
+
+    const results = await Promise.all(
+      wanted.map((season) =>
+        this.getPlayerStats(sport, playerId, { ...query, season }).catch(
+          (error: unknown) => {
+            // Only "this player has no season here" is absorbed. A broken
+            // upstream or a bad scoring key should still surface.
+            if (error instanceof NotFoundException) return null;
+            throw error;
+          },
+        ),
+      ),
+    );
+
+    const played = results.filter((result) => result !== null);
+    if (played.length === 0) {
+      throw new NotFoundException(SPORTS_MESSAGES.playerNotFound);
+    }
+
+    // Newest first: a trajectory is read backwards from where the player is now.
+    const ordered = [...played].sort((a, b) => b.season.localeCompare(a.season));
+    return {
+      sport,
+      scoring: ordered[0].scoring,
+      group: ordered[0].group,
+      player: ordered[0].player,
+      seasons: ordered.map(({ season, entries, totals, summary }) => ({
+        season,
+        gamesPlayed: entries.length,
+        fantasyPoints: summary.total,
+        pointsPerGame: summary.average,
+        totals,
+        summary,
+      })),
+      missing: wanted.filter(
+        (season) => !played.some((result) => result.season === season),
       ),
     };
   }
@@ -561,14 +716,30 @@ export class SportsService {
     };
   }
 
+  /**
+   * Who is available to play.
+   *
+   * Two sources, narrowest first. A league-data provider publishes a real
+   * roster — baseball's 40-man, which carries designations a stat feed never
+   * shows — and that is preferred wherever it exists. Where it does not, the
+   * player directory already carries a normalized `availability` for every
+   * player in the league, so football answers from that rather than from
+   * nothing. They are different populations, which is why the answer says
+   * which one it came from: a 40-man roster is a club's own list, a directory
+   * is everyone who exists.
+   */
   async getPlayerStatuses(
     sport: SportKey,
     query: { season?: string; availability?: string[]; team?: string; search?: string },
   ) {
-    const provider = this.leagueProvider(sport);
+    const provider = this.provider(sport);
     const season =
       query.season ?? (await provider.getCatalog()).defaultSeason;
-    const statuses = await provider.getPlayerStatuses(season);
+    const { statuses, source } = await this.playerStatuses(
+      sport,
+      provider,
+      season,
+    );
 
     const team = query.team?.toUpperCase();
     const search = query.search?.trim().toLowerCase();
@@ -579,6 +750,7 @@ export class SportsService {
     return {
       sport,
       season,
+      source,
       players: statuses.filter(
         (player) =>
           (!availability || availability.has(player.availability)) &&
@@ -586,6 +758,40 @@ export class SportsService {
           (!search || player.name.toLowerCase().includes(search)),
       ),
     };
+  }
+
+  private async playerStatuses(
+    sport: SportKey,
+    provider: SportProvider,
+    season: string,
+  ): Promise<{ statuses: PlayerStatus[]; source: PlayerStatusSource }> {
+    if (providesLeagueData(provider)) {
+      return {
+        statuses: await provider.getPlayerStatuses(season),
+        source: PLAYER_STATUS_SOURCES.roster,
+      };
+    }
+
+    if (providesPlayerDirectory(provider)) {
+      const directory = await provider.getPlayerDirectory();
+      return {
+        statuses: directory.map(
+          ({ id, name, team, position, status, availability }) => ({
+            playerId: id,
+            name,
+            team,
+            position,
+            // The directory says nothing at all for a player with no note
+            // against them, which is itself the answer.
+            status: status ?? availability,
+            availability,
+          }),
+        ),
+        source: PLAYER_STATUS_SOURCES.directory,
+      };
+    }
+
+    throw new BadRequestException(SPORTS_MESSAGES.noLeagueData(sport));
   }
 
   /**
@@ -800,8 +1006,14 @@ export class SportsService {
     },
   ): Promise<GamePreview> {
     const provider = this.scheduleProvider(sport);
+    // Season-long lines on purpose, though the query may carry dates: those
+    // narrow the fixtures and the team-strength measurement below. Windowing
+    // the player pool as well would make a preview fail outright for a sport
+    // that measures part-seasons in weeks, which is most of them.
     const { group, scoring, season, rows } = await this.scoreStatLines(sport, {
       ...query,
+      startDate: undefined,
+      endDate: undefined,
       kind: DATA_KINDS.stats,
     });
 
@@ -834,7 +1046,7 @@ export class SportsService {
       .filter((team, index, all) => all.indexOf(team) === index)
       .sort();
     const teams = [query.teamA, query.teamB].map((team) =>
-      resolveTeam(team, known),
+      resolveTeam(team, sport, known),
     ) as [string, string];
     if (teams[0] === teams[1]) {
       throw new BadRequestException(SPORTS_MESSAGES.sameTeam);

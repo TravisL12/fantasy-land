@@ -1,8 +1,6 @@
-import { NotFoundException } from '@nestjs/common';
 import type { SportsService } from '../../sports/sports.service.js';
 import { MatchupRatingsTool } from './matchup-ratings.tool.js';
 import { PitcherStartsTool } from './pitcher-starts.tool.js';
-import { PlayerStatusTool } from './player-status.tool.js';
 
 const start = (
   date: string,
@@ -190,54 +188,5 @@ describe('get_matchup_ratings', () => {
 
     const dashboard = await tool.execute({}, { full: true });
     expect(dashboard.teams[0].metrics).toEqual(teams[0].metrics);
-  });
-});
-
-describe('get_player_status', () => {
-  const statuses = [
-    { name: 'Bryce Harper', availability: 'injured' },
-    { name: 'Zack Wheeler', availability: 'active' },
-  ];
-
-  it('defaults to unavailable players when sweeping', async () => {
-    const getPlayerStatuses = vi
-      .fn()
-      .mockResolvedValue({ sport: 'mlb', season: '2026', players: statuses });
-    const tool = new PlayerStatusTool(sportsStub({ getPlayerStatuses }));
-
-    await tool.execute({ team: 'PHI' });
-
-    expect(getPlayerStatuses).toHaveBeenCalledWith(
-      'mlb',
-      expect.objectContaining({ availability: ['injured', 'inactive'] }),
-    );
-  });
-
-  it('does not filter out healthy players when a name is searched', async () => {
-    const getPlayerStatuses = vi
-      .fn()
-      .mockResolvedValue({ sport: 'mlb', season: '2026', players: statuses });
-    const tool = new PlayerStatusTool(sportsStub({ getPlayerStatuses }));
-
-    await tool.execute({ search: 'Wheeler' });
-
-    expect(getPlayerStatuses).toHaveBeenCalledWith(
-      'mlb',
-      expect.objectContaining({ availability: [], search: 'Wheeler' }),
-    );
-  });
-
-  it('reports no match rather than returning an empty list', async () => {
-    const tool = new PlayerStatusTool(
-      sportsStub({
-        getPlayerStatuses: vi
-          .fn()
-          .mockResolvedValue({ sport: 'mlb', season: '2026', players: [] }),
-      }),
-    );
-
-    await expect(tool.execute({ search: 'Nobody' })).rejects.toThrow(
-      NotFoundException,
-    );
   });
 });

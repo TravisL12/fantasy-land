@@ -27,7 +27,7 @@ export class ScheduleTool implements FantasyTool {
     name: 'get_schedule',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Games in a window, played and upcoming: the date, the week where the sport has one, both teams, the status and the final score once a game is over. Use it for "who plays this week", "when do the Chiefs next play", "what happened last Sunday" and bye weeks. Ask for NFL by week and MLB by date. A game with no score has not finished yet.',
+      'Games in a window, played and upcoming: the date, the week where the sport has one, both teams, the status and the final score once a game is over. Use it for "who plays this week", "when do the Chiefs next play", "what happened last Sunday", "what was the score" and bye weeks. **Whenever the question names a club, pass `team`** — without it you get the whole league\'s slate and the club\'s own game may not even be in it. Ask for NFL by week and MLB by date. A game with no score has not finished yet.',
     parameters: {
       type: 'object',
       properties: {
@@ -37,7 +37,7 @@ export class ScheduleTool implements FantasyTool {
         team: {
           type: 'string',
           description:
-            'Only games involving this team abbreviation, e.g. "KC". Omit for the whole slate.',
+            'Only games involving this team abbreviation, e.g. "KC". Required in spirit whenever the question is about one club — omit it only for a whole slate.',
         },
         limit: {
           type: 'integer',

@@ -1,5 +1,8 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { PlayerStatsQueryDto } from './dto/player-stats-query.dto.js';
+import {
+  PlayerSeasonsQueryDto,
+  PlayerStatsQueryDto,
+} from './dto/player-stats-query.dto.js';
 import {
   AvailabilityQueryDto,
   DateWindowQueryDto,
@@ -13,6 +16,7 @@ import {
 import { PlayerParamsDto, SportParamsDto } from './dto/sport-params.dto.js';
 import { StatsQueryDto } from './dto/stats-query.dto.js';
 import type {
+  PlayerSeasonsResponseDto,
   PlayerStatsResponseDto,
   SportCatalogResponseDto,
   StatsResponseDto,
@@ -120,5 +124,13 @@ export class SportsController {
     @Query() query: PlayerStatsQueryDto,
   ): Promise<PlayerStatsResponseDto> {
     return this.sportsService.getPlayerStats(sport, playerId, query);
+  }
+
+  @Get(SPORTS_ROUTES.playerSeasons)
+  playerSeasons(
+    @Param() { sport, playerId }: PlayerParamsDto,
+    @Query() { seasons, ...query }: PlayerSeasonsQueryDto,
+  ): Promise<PlayerSeasonsResponseDto> {
+    return this.sportsService.getPlayerSeasons(sport, playerId, seasons, query);
   }
 }

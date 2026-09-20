@@ -1,10 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { clamp } from '../../common/math/number.js';
-import { SPORT_KEYS } from '../sports/sports.constants.js';
+import { SPORT_KEYS, VENUES } from '../sports/sports.constants.js';
 import type {
   MatchupRating,
   SportKey,
   StatGroup,
+  Venue,
 } from '../sports/sports.types.js';
 import { matchKey, resolveStatKey } from '../sports/sports.utils.js';
 import { ROW_LEVEL_FIELDS, TOOL_MESSAGES } from './tools.constants.js';
@@ -96,6 +97,12 @@ export const asLimit = (
 ) => clamp(asNumber(value) ?? fallback, min, max);
 
 /** "true"/"1"/"yes" as well as a real boolean — small models send all three. */
+/** Home/away, matched loosely — a model writes "Home" as often as "home". */
+export const asVenue = (value: unknown): Venue | undefined => {
+  const venue = asString(value)?.trim().toLowerCase();
+  return venue && venue in VENUES ? (venue as Venue) : undefined;
+};
+
 export const asFlag = (value: unknown): boolean =>
   value === true || ['true', '1', 'yes'].includes(String(value).toLowerCase());
 

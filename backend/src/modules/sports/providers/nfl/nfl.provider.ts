@@ -22,7 +22,10 @@ import type {
   StatLine,
   StatLinesQuery,
   TeamGamesQuery,
+  WindowedStatsProvider,
+  WindowedStatsQuery,
 } from '../../sports.types.js';
+import { STAT_WINDOW_KINDS } from '../../sports.types.js';
 import {
   espnScoreboardUrl,
   espnStandingsUrl,
@@ -76,9 +79,12 @@ export class NflProvider
     OpportunityProvider,
     PlayerDirectoryProvider,
     ScheduleProvider,
-    StandingsProvider
+    StandingsProvider,
+    WindowedStatsProvider
 {
   readonly key = SPORT_KEYS.nfl;
+  /** Football is discussed in weeks, and the weekly payloads are what we hold. */
+  readonly windowKinds = [STAT_WINDOW_KINDS.weeks] as const;
   readonly opportunityStats = NFL_OPPORTUNITY_STATS;
 
   constructor(private readonly cache: DataCacheService) {}
@@ -119,6 +125,35 @@ export class NflProvider
         return aggregateStatLines(weekly, statGroup);
       },
     );
+  }
+
+  /**
+   * A stretch of weeks, summed the same way a season is.
+   *
+   * Nothing is cached at this level on purpose: each week's payload is already
+   * cached individually by fetchStatLines, so a window costs no upstream
+   * requests once its weeks have been seen, and caching every combination of
+   * weeks anyone might ask for would be an unbounded number of keys for an
+   * in-memory sum.
+   */
+  async getWindowedStatLines({
+    season,
+    group,
+    kind,
+    window,
+  }: WindowedStatsQuery): Promise<StatLine[]> {
+    const statGroup = findGroup(NFL_GROUPS, group);
+    const played = await this.playedWeeks(season);
+    // A week that has not been played yet drops out rather than erroring: asking
+    // for weeks 1-6 in week 4 means the four that exist.
+    const weeks = window.weeks?.length
+      ? played.filter((week) => window.weeks?.includes(week))
+      : played;
+
+    const weekly = await Promise.all(
+      weeks.map((week) => this.fetchStatLines({ season, week, group, kind })),
+    );
+    return aggregateStatLines(weekly, statGroup);
   }
 
   private async fetchStatLines({ season, week, group, kind }: StatLinesQuery) {

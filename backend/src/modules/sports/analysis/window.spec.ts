@@ -1,4 +1,4 @@
-import { datesUnusable, sliceGames } from './window.js';
+import { datesUnusable, sliceGames, venueUnusable } from './window.js';
 
 const dated = [
   { date: '2026-07-01', week: null },
@@ -55,5 +55,67 @@ describe('sliceGames', () => {
 
     expect(datesUnusable(mixed, { startDate: '2026-07-01' })).toBe(false);
     expect(sliceGames(mixed, { startDate: '2026-07-01' })).toEqual(dated);
+  });
+});
+
+describe('sliceGames splits', () => {
+  const game = (
+    week: number,
+    opponent: string | null,
+    isHome: boolean | null,
+  ) => ({ date: null, week, opponent, isHome });
+
+  const log = [
+    game(1, 'KC', true),
+    game(2, 'BUF', false),
+    game(3, 'KC', false),
+    game(4, 'MIA', true),
+  ];
+
+  it('splits home from away', () => {
+    expect(sliceGames(log, { venue: 'home' }).map(({ week }) => week)).toEqual([
+      1, 4,
+    ]);
+    expect(sliceGames(log, { venue: 'away' }).map(({ week }) => week)).toEqual([
+      2, 3,
+    ]);
+  });
+
+  it('narrows to one opponent, whatever the casing', () => {
+    expect(sliceGames(log, { opponent: 'kc' }).map(({ week }) => week)).toEqual([
+      1, 3,
+    ]);
+  });
+
+  it('combines a split with the rest of the window', () => {
+    expect(
+      sliceGames(log, { opponent: 'KC', venue: 'away' }).map(({ week }) => week),
+    ).toEqual([3]);
+  });
+
+  it('applies lastN after the split, not before', () => {
+    // The last away game, not "the last game, if it was away".
+    expect(
+      sliceGames(log, { venue: 'away', lastN: 1 }).map(({ week }) => week),
+    ).toEqual([3]);
+  });
+
+  it('ignores a venue split the log cannot answer rather than emptying it', () => {
+    const undated = [game(1, 'KC', null), game(2, 'BUF', null)];
+
+    expect(sliceGames(undated, { venue: 'home' })).toHaveLength(2);
+    expect(venueUnusable(undated, { venue: 'home' })).toBe(true);
+  });
+
+  it('still filters by venue when only some games say', () => {
+    const partial = [game(1, 'KC', true), game(2, 'BUF', null)];
+
+    expect(sliceGames(partial, { venue: 'home' }).map(({ week }) => week)).toEqual(
+      [1],
+    );
+  });
+
+  it('returns nothing for an opponent never faced', () => {
+    expect(sliceGames(log, { opponent: 'NYJ' })).toEqual([]);
   });
 });

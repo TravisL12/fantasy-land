@@ -23,7 +23,10 @@ import type {
   TeamGamesQuery,
   StatLinesQuery,
   TeamStrength,
+  WindowedStatsProvider,
+  WindowedStatsQuery,
 } from '../../sports.types.js';
+import { STAT_WINDOW_KINDS } from '../../sports.types.js';
 import {
   cacheKeyFor,
   findGroup,
@@ -73,8 +76,12 @@ import type {
 const cacheKey = cacheKeyFor(SPORT_KEYS.mlb);
 
 @Injectable()
-export class MlbProvider implements LeagueDataProvider, StandingsProvider {
+export class MlbProvider
+  implements LeagueDataProvider, StandingsProvider, WindowedStatsProvider
+{
   readonly key = SPORT_KEYS.mlb;
+  /** Baseball has no weeks, so a window here is always a date range. */
+  readonly windowKinds = [STAT_WINDOW_KINDS.dates] as const;
   readonly matchupMetrics: Record<MatchupSide, MatchupMetric[]> =
     MLB_MATCHUP_METRICS;
 
@@ -94,14 +101,48 @@ export class MlbProvider implements LeagueDataProvider, StandingsProvider {
   }
 
   async getStatLines({ season, group }: StatLinesQuery) {
+    return this.statLines(season, group, MLB_STATS_TYPES.season, '', 'stats');
+  }
+
+  /**
+   * The same pool of players measured over part of the season. Upstream serves
+   * a date range as one request with splits shaped exactly like the season's,
+   * so this costs what a season leaderboard costs — the alternative, a game log
+   * per player, would be hundreds of requests for one question.
+   */
+  async getWindowedStatLines({ season, group, window }: WindowedStatsQuery) {
+    // Upstream wants both ends. An open-ended window is the rest of the season
+    // in that direction, which is what "since the break" or "before June" mean.
+    const startDate = window.startDate ?? `${season}-01-01`;
+    const endDate = window.endDate ?? `${season}-12-31`;
+
+    return this.statLines(
+      season,
+      group,
+      MLB_STATS_TYPES.byDateRange,
+      `&startDate=${startDate}&endDate=${endDate}`,
+      'windowStats',
+      startDate,
+      endDate,
+    );
+  }
+
+  private async statLines(
+    season: string,
+    group: string,
+    statsType: string,
+    extraParams: string,
+    ...key: string[]
+  ) {
     const statGroup = findGroup(MLB_GROUPS, group);
     const ttl = await this.ttlForSeason(season);
 
-    return this.cache.wrap(cacheKey('stats', season, group), ttl, async () => {
+    return this.cache.wrap(cacheKey(...key, season, group), ttl, async () => {
       const [response, teams] = await Promise.all([
         fetchJson<MlbStatsResponse<MlbSeasonSplit>>(
-          `${MLB_API}/stats?stats=season&group=${group}&season=${season}` +
-            `&sportId=${MLB_SPORT_ID}&playerPool=ALL&limit=${MLB_STATS_PAGE_SIZE}`,
+          `${MLB_API}/stats?stats=${statsType}&group=${group}&season=${season}` +
+            `&sportId=${MLB_SPORT_ID}&playerPool=ALL&limit=${MLB_STATS_PAGE_SIZE}` +
+            extraParams,
         ),
         this.getTeams(season),
       ]);

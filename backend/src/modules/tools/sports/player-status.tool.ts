@@ -1,34 +1,37 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import {
-  AVAILABILITY,
-  SPORT_KEYS,
-} from '../../sports/sports.constants.js';
+import { AVAILABILITY } from '../../sports/sports.constants.js';
 import { SportsService } from '../../sports/sports.service.js';
 import { LOCAL_TOOL_SOURCE } from '../tools.constants.js';
 import type { FantasyTool, ToolDefinition } from '../tools.types.js';
 import { asLimit, asSport, asString, asStringArray } from '../tools.utils.js';
 import {
   AVAILABILITY_PARAM,
-  BASEBALL_SPORT_PARAM,
-  BASEBALL_TOOL_MESSAGES,
+  SPORTS_TOOL_MESSAGES,
+  SPORT_PARAM,
   STATUS_LIMIT,
   TEAM_PARAM,
-} from './baseball-tools.constants.js';
+} from './sports-tools.constants.js';
 
 const DEFAULT_AVAILABILITY = [AVAILABILITY.injured, AVAILABILITY.inactive];
 
-/** Roster availability, so nobody gets recommended off the injured list. */
+/**
+ * Who is fit to play, so nobody gets recommended off the injured list.
+ *
+ * Sport-agnostic, though the two sports answer it from different places: a real
+ * roster where the league publishes one, the league-wide player directory
+ * everywhere else. The service picks, and says which in `source`.
+ */
 @Injectable()
 export class PlayerStatusTool implements FantasyTool {
   readonly definition: ToolDefinition = {
     name: 'get_player_status',
     source: LOCAL_TOOL_SOURCE,
     description:
-      'Roster availability — active, injured (with the league\'s own injured-list wording), in the minors, or otherwise out. Check it before recommending anyone to start, add or trade for. Pass a name for one player, or a team for a whole club.',
+      'Whether players are fit to play — active, injured (with the league\'s own wording), in the minors, or otherwise out. Check it before recommending anyone to start, add or trade for. Pass a name for one player, or a team for a whole club. Works for every sport.',
     parameters: {
       type: 'object',
       properties: {
-        sport: BASEBALL_SPORT_PARAM,
+        sport: SPORT_PARAM,
         search: {
           type: 'string',
           description:
@@ -58,7 +61,7 @@ export class PlayerStatusTool implements FantasyTool {
         : DEFAULT_AVAILABILITY;
 
     const result = await this.sports.getPlayerStatuses(
-      asSport(args.sport, SPORT_KEYS.mlb),
+      asSport(args.sport),
       {
         season: asString(args.season),
         search,
@@ -68,7 +71,7 @@ export class PlayerStatusTool implements FantasyTool {
     );
 
     if (result.players.length === 0) {
-      throw new NotFoundException(BASEBALL_TOOL_MESSAGES.noStatuses);
+      throw new NotFoundException(SPORTS_TOOL_MESSAGES.noStatuses);
     }
 
     const limit = asLimit(args.limit, STATUS_LIMIT);
