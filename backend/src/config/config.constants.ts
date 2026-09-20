@@ -25,7 +25,7 @@ export const DEFAULT_OLLAMA_TEMPERATURE = 0.3;
 export const DEFAULT_OLLAMA_NUM_CTX = 65_536;
 /** Local models are slow; a long generation shouldn't look like a failure. */
 export const DEFAULT_OLLAMA_TIMEOUT_MS = 300_000;
-export const DEFAULT_CHAT_MAX_TOOL_ROUNDS = 6;
+export const DEFAULT_CHAT_MAX_TOOL_ROUNDS = 20;
 /**
  * How long Ollama keeps the model resident after a request. Residency is not
  * free — a 9b at q4 with a 64k context holds ~7GB for the whole window, and

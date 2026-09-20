@@ -50,7 +50,7 @@ export const BUILD_DASHBOARD_TOOL = 'build_dashboard';
  * the data tool itself — and a build that runs out mid-way leaves the person
  * with nothing at all, where a chat turn that runs out has still said something.
  */
-export const BUILDER_MAX_TOOL_ROUNDS = 10;
+export const BUILDER_MAX_TOOL_ROUNDS = 30;
 
 /** Sent once when a pass ends with data fetched but no dashboard built. */
 export const BUILD_NUDGE =
@@ -173,7 +173,7 @@ export const BUILDER_SYSTEM_PROMPT = [
   'A dashboard is sources plus widgets.',
   '- A source is a tool call re-run every time the dashboard is opened, so pick',
   '  arguments that stay right later: prefer a season over a fixed date range.',
-  "- A source's \"args\" are that tool's own arguments, so a \"sort\" there is a stat",
+  '- A source\'s "args" are that tool\'s own arguments, so a "sort" there is a stat',
   '  key such as "homeRuns", never a dot path. Sorting the source picks *which*',
   '  players come back; a table\'s own "sort" only reorders them.',
   '- "rowsPath" is the dot path to the array in a result ("rows" for most tools,',
@@ -193,7 +193,9 @@ export const BUILDER_SYSTEM_PROMPT = [
   '  right widget for "player A vs player B".',
   '- line: a trend. "x" is the path to the time axis (a game log\'s "week" or "date");',
   '  each entry in "series" is one line. A series may name its own "source", so two',
-  '  players\' game logs become two lines on one chart. Max ' + SPEC_LIMITS.series + ' series.',
+  "  players' game logs become two lines on one chart. Max " +
+    SPEC_LIMITS.series +
+    ' series.',
   '- bar: magnitude across categories. "x" is the category (usually "name"); one',
   '  series is the norm. Set "horizontal": true when the labels are player names.',
   '- stats: a row of headline numbers from one object — "path" points at the object',
@@ -248,9 +250,20 @@ export const BUILDER_SYSTEM_PROMPT = [
           labelPath: 'name',
           width: 'full',
           metrics: [
-            { key: 'ppg', header: 'Points per game', path: 'pointsPerGame', format: 'decimal' },
+            {
+              key: 'ppg',
+              header: 'Points per game',
+              path: 'pointsPerGame',
+              format: 'decimal',
+            },
             { key: 'floor', header: 'Floor', path: 'floor', format: 'decimal' },
-            { key: 'vol', header: 'Volatility', path: 'volatility', format: 'decimal', better: 'lower' },
+            {
+              key: 'vol',
+              header: 'Volatility',
+              path: 'volatility',
+              format: 'decimal',
+              better: 'lower',
+            },
           ],
         },
         {
@@ -263,7 +276,12 @@ export const BUILDER_SYSTEM_PROMPT = [
           x: { path: 'week', label: 'Week' },
           series: [
             { key: 'saquon', label: 'Barkley', path: 'fantasyPoints' },
-            { key: 'gibbs', label: 'Gibbs', path: 'fantasyPoints', source: 'log_b' },
+            {
+              key: 'gibbs',
+              label: 'Gibbs',
+              path: 'fantasyPoints',
+              source: 'log_b',
+            },
           ],
         },
       ],
